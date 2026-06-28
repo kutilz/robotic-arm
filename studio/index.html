@@ -1,0 +1,815 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Cycloidal Arm Studio</title>
+<style>
+  :root{
+    --bg:#0e1318; --bg2:#0a0e12; --panel:#141b22; --panel2:#1a232c;
+    --line:#26313d; --line2:#33414f;
+    --ink:#d6e0ea; --muted:#7e8ea0; --dim:#5b6877; --head:#eef4fa;
+    --cy:#39c2e0; --cy2:#7fe0f0;
+    --ok:#4ade80; --warn:#f5b942; --over:#f06c5e;
+    --pla:#e08a3c; --steel:#b9c2cb; --motor:#2b323a;
+    --mono:ui-monospace,"SF Mono","JetBrains Mono",Menlo,Consolas,monospace;
+    --sans:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--ink);font-family:var(--sans)}
+  #app{display:flex;height:100%;width:100%}
+  /* ---- viewport ---- */
+  #stage{position:relative;flex:1;min-width:0;background:
+      radial-gradient(120% 90% at 65% 18%,#16202b 0%,#0d1217 55%,#080b0e 100%)}
+  canvas{display:block;touch-action:none}
+  .hud{position:absolute;pointer-events:none;font-family:var(--mono);font-size:11px;line-height:1.55}
+  #hudTop{top:12px;left:14px;color:var(--ink)}
+  #hudTop b{color:var(--cy2);font-weight:600}
+  #hudTop .k{color:var(--dim)}
+  #legend{bottom:12px;left:14px;color:var(--muted);font-size:10.5px}
+  #legend .sw{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:6px;vertical-align:middle}
+  #hint{bottom:12px;right:14px;color:var(--dim);font-size:10px;text-align:right}
+  #modePill{position:absolute;top:12px;right:14px;display:flex;gap:0;border:1px solid var(--line2);
+      border-radius:8px;overflow:hidden;font-size:11px;font-family:var(--mono)}
+  #modePill button{pointer-events:auto;background:transparent;color:var(--muted);border:0;padding:6px 11px;cursor:pointer}
+  #modePill button.on{background:var(--cy);color:#04141a;font-weight:600}
+  /* ---- panel ---- */
+  #panel{width:330px;flex:none;background:var(--panel);border-left:1px solid var(--line);
+      display:flex;flex-direction:column;height:100%}
+  #panel header{padding:14px 16px 12px;border-bottom:1px solid var(--line)}
+  #panel header .t{font-size:14px;font-weight:600;color:var(--head);letter-spacing:.2px}
+  #panel header .s{font-size:10.5px;color:var(--dim);font-family:var(--mono);margin-top:3px}
+  #scroll{overflow-y:auto;overflow-x:hidden;flex:1;padding:4px 0 28px}
+  #scroll::-webkit-scrollbar{width:9px}
+  #scroll::-webkit-scrollbar-thumb{background:var(--line2);border-radius:6px}
+  .sec{border-bottom:1px solid var(--line)}
+  .sec>.h{display:flex;align-items:center;justify-content:space-between;cursor:pointer;
+      padding:11px 16px;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);user-select:none}
+  .sec>.h .ar{color:var(--dim);transition:transform .18s;font-size:9px}
+  .sec.closed>.h .ar{transform:rotate(-90deg)}
+  .sec>.body{padding:2px 16px 14px}
+  .sec.closed>.body{display:none}
+  .row{display:flex;align-items:center;gap:8px;margin:9px 0}
+  .row label{flex:none;width:118px;font-size:11.5px;color:var(--ink)}
+  .row .val{flex:none;width:54px;text-align:right;font-family:var(--mono);font-size:11px;color:var(--cy2)}
+  input[type=range]{-webkit-appearance:none;appearance:none;flex:1;height:3px;border-radius:3px;
+      background:var(--line2);outline:none}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;
+      background:var(--cy);border:2px solid #06222b;cursor:pointer}
+  input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:var(--cy);border:2px solid #06222b;cursor:pointer}
+  select{width:100%;background:var(--panel2);color:var(--ink);border:1px solid var(--line2);
+      border-radius:6px;padding:6px 8px;font-size:11.5px;font-family:var(--mono)}
+  .btns{display:flex;flex-wrap:wrap;gap:7px}
+  .btns button,.tgl{background:var(--panel2);color:var(--ink);border:1px solid var(--line2);
+      border-radius:7px;padding:7px 10px;font-size:11px;cursor:pointer;font-family:var(--sans)}
+  .btns button:hover,.tgl:hover{border-color:var(--cy)}
+  .tgl{display:flex;align-items:center;justify-content:space-between;width:100%;margin:7px 0}
+  .tgl .dot{width:30px;height:17px;border-radius:10px;background:var(--line2);position:relative;transition:.16s}
+  .tgl .dot::after{content:"";position:absolute;width:13px;height:13px;border-radius:50%;background:#7b8896;
+      top:2px;left:2px;transition:.16s}
+  .tgl.on .dot{background:var(--cy)}
+  .tgl.on .dot::after{left:15px;background:#04141a}
+  /* joint torque cards */
+  .jcard{background:var(--panel2);border:1px solid var(--line);border-left:3px solid var(--dim);
+      border-radius:8px;padding:9px 11px;margin:8px 0}
+  .jcard .top{display:flex;justify-content:space-between;align-items:baseline}
+  .jcard .nm{font-size:12px;font-weight:600;color:var(--head)}
+  .jcard .nm span{font-size:10px;color:var(--dim);font-weight:400;font-family:var(--mono)}
+  .jcard .st{font-size:10px;font-family:var(--mono);padding:1px 7px;border-radius:10px}
+  .jcard .meter{height:5px;border-radius:4px;background:#0c1116;margin:7px 0 5px;overflow:hidden}
+  .jcard .meter i{display:block;height:100%;border-radius:4px;transition:width .15s,background .15s}
+  .jcard .nums{display:flex;justify-content:space-between;font-family:var(--mono);font-size:10px;color:var(--muted)}
+  .jcard .nums b{color:var(--ink);font-weight:600}
+  .note{font-size:10.5px;color:var(--dim);line-height:1.5;font-family:var(--mono)}
+  .mini{font-size:10px;color:var(--dim);margin:3px 0 9px;line-height:1.45}
+  /* mobile */
+  #panelToggle{display:none}
+  @media(max-width:780px){
+    #panel{position:absolute;right:0;top:0;height:100%;transform:translateX(100%);transition:.22s;z-index:30;width:88%;max-width:340px;box-shadow:-12px 0 40px #0008}
+    #panel.open{transform:none}
+    #panelToggle{display:flex;position:absolute;bottom:18px;right:16px;z-index:31;pointer-events:auto;
+        background:var(--cy);color:#04141a;border:0;border-radius:50%;width:54px;height:54px;font-size:20px;
+        align-items:center;justify-content:center;box-shadow:0 6px 18px #0009;cursor:pointer}
+    #hint{display:none}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="stage">
+    <div id="hudTop" class="hud"></div>
+    <div id="legend" class="hud">
+      <div><span class="sw" style="background:var(--pla)"></span>printed PLA+ (housing / disk / hub / link)</div>
+      <div><span class="sw" style="background:var(--steel)"></span>steel hardware (roller pin · dowel · bearing · shaft)</div>
+      <div><span class="sw" style="background:#3a4450"></span>stepper (NEMA17 / 23)</div>
+    </div>
+    <div id="hint" class="hud">drag = orbit · scroll = zoom · shift+drag = pan</div>
+    <div id="modePill">
+      <button id="mArm" class="on">Full arm</button>
+      <button id="mDrive">Inspect drive</button>
+    </div>
+    <button id="panelToggle">☰</button>
+  </div>
+
+  <aside id="panel">
+    <header>
+      <div class="t">Cycloidal Arm Studio</div>
+      <div class="s" id="subhead">6-DOF · printed cycloidal + belt</div>
+    </header>
+    <div id="scroll"></div>
+  </aside>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+"use strict";
+const THREEr = window.THREE;
+
+/* ============================================================ DATA / MODEL */
+// Cycloidal geometry defaults pulled from cycloidalDrive.fs
+const CYC = {
+  N:25,            // ring pin count  -> reduction N:1, lobes = N-1
+  pinCircleR:38,   // pinCircleDiameter 76 / 2
+  pinR:1.985,      // pin/roller dia 3.97 / 2
+  ecc:1.0,         // eccentricity
+  diskT:6,         // disk thickness
+  flangeT:5,       // flange thickness
+  wallT:2,         // wall thickness
+  dualDisk:true,
+  diskGap:1.0,
+  outPinN:6,
+  outPinR:2.5,     // output dowel 5 / 2
+  outPinCircleR:26,// output pin circle dia 52 / 2
+  bearOuter:22, bearInner:10, bearW:6, // 6900ZZ
+};
+CYC.outerR = CYC.pinCircleR + CYC.pinR + CYC.wallT;      // ~42
+CYC.ringH  = CYC.dualDisk ? (2*CYC.diskT + CYC.diskGap) : CYC.diskT; // 13
+CYC.housingH = CYC.flangeT + CYC.ringH;                  // 18
+
+// link segments (mm) — anthropomorphic 70cm split from the research
+const LINK = { upper:330, fore:270, wrist:100, baseH:150, riser:55 };
+
+// motor catalogue: holding torque (N·m). running = 0.5*holding (per research)
+const MOTORS = {
+  "17HS4401":0.40, "17HS8401":0.52, "17HS19-2004S1":0.59,
+  "42HS048DF":0.35, "NEMA23 (1.26)":1.26
+};
+
+// joint definitions: name, kind, axis(local, in parent frame), default angle range, motor, ratio, drive(cyc/belt)
+// axis convention: Y up. pitch axes about local X. roll about local Y (link long axis). yaw about Y.
+const JDEF = [
+  {id:"J1", name:"Base yaw",    kind:"yaw",   drive:"belt", motor:"17HS19-2004S1", ratio:20, min:-180,max:180, a:0},
+  {id:"J2", name:"Shoulder",    kind:"pitch", drive:"cyc",  motor:"NEMA23 (1.26)", ratio:55, min:-95, max:95,  a:0},
+  {id:"J3", name:"Elbow",       kind:"pitch", drive:"cyc",  motor:"17HS19-2004S1", ratio:50, min:-150,max:150, a:0},
+  {id:"J4", name:"Wrist roll",  kind:"roll",  drive:"cyc",  motor:"17HS4401",      ratio:15, min:-180,max:180, a:0},
+  {id:"J5", name:"Wrist pitch", kind:"pitch", drive:"cyc",  motor:"17HS4401",      ratio:15, min:-120,max:120, a:0},
+  {id:"J6", name:"End roll",    kind:"roll",  drive:"cyc",  motor:"17HS4401",      ratio:15, min:-180,max:180, a:0},
+];
+
+// lumped masses (kg) + where they attach (jointIndex 0-based into JDEF) + distance along the *next* link (mm)
+// reproduces the research moment-arm table when arm is straight & horizontal
+const MASSES = [
+  {label:"upper-arm link", m:0.20, joint:1, along:165}, // distal to J2, mid upper arm
+  {label:"elbow drive",    m:0.55, joint:2, along:0},   // at J3
+  {label:"forearm link",   m:0.15, joint:2, along:135}, // mid forearm (from J3)
+  {label:"wrist drive",    m:0.45, joint:4, along:0},   // at J5
+  {label:"wrist+EE",       m:0.40, joint:4, along:50},  // mid wrist
+  {label:"payload",        m:0.50, joint:5, along:0},   // at tip (700mm from J2)
+];
+
+const STATE = {
+  mode:"arm", explode:0, payload:0.10, eta:0.75, sf:2.5, plaCeil:0,
+  show:{axes:true, masses:false, dims:true, fixedHousing:true},
+  joints: JDEF.map(j=>({...j})),
+};
+// printed-PLA torque ceiling estimate, scaled from research (~13 N·m @ 22mm pin circle)
+function plaCeiling(){ return 13 * (CYC.pinCircleR/22); }
+STATE.plaCeil = plaCeiling();
+
+const G = 9.81;
+const d2r = Math.PI/180;
+
+/* ============================================================ THREE SETUP */
+const stage = document.getElementById('stage');
+const renderer = new THREEr.WebGLRenderer({antialias:true, alpha:false});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.outputEncoding = THREEr.sRGBEncoding;
+renderer.toneMapping = THREEr.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+stage.appendChild(renderer.domElement);
+
+const scene = new THREEr.Scene();
+scene.background = new THREEr.Color('#0b1015');
+
+const camera = new THREEr.PerspectiveCamera(42, 1, 1, 60000);
+const camTarget = new THREEr.Vector3(0, 360, 0);
+
+// lights
+scene.add(new THREEr.HemisphereLight('#cfe6f5','#0c1116',0.85));
+const key = new THREEr.DirectionalLight('#fff4e6',1.25); key.position.set(600,1100,650); scene.add(key);
+const fill= new THREEr.DirectionalLight('#9fc4e6',0.45); fill.position.set(-700,400,-500); scene.add(fill);
+const rim = new THREEr.DirectionalLight('#bfe9ff',0.5);  rim.position.set(-200,300,900);  scene.add(rim);
+
+// floor grid
+const grid = new THREEr.GridHelper(2400, 24, 0x2a3a47, 0x18242e);
+grid.position.y = 0; scene.add(grid);
+const grid2 = new THREEr.GridHelper(2400, 4, 0x33505f, 0x33505f); // 600mm major
+grid2.position.y = 0.2; scene.add(grid2);
+
+// materials
+const M = {
+  pla:   new THREEr.MeshStandardMaterial({color:0xe08a3c, roughness:.72, metalness:.04}),
+  pla2:  new THREEr.MeshStandardMaterial({color:0xcf9a5e, roughness:.78, metalness:.04}),
+  housing:new THREEr.MeshStandardMaterial({color:0xb98a52, roughness:.7, metalness:.05}),
+  steel: new THREEr.MeshStandardMaterial({color:0xb9c2cb, roughness:.32, metalness:.92}),
+  motor: new THREEr.MeshStandardMaterial({color:0x2b323a, roughness:.55, metalness:.55}),
+  belt:  new THREEr.MeshStandardMaterial({color:0x1c2228, roughness:.85, metalness:.1}),
+  link:  new THREEr.MeshStandardMaterial({color:0xd98a3c, roughness:.7, metalness:.05}),
+};
+
+/* ---------------- camera orbit/pan/zoom (custom, mouse + touch) ---------- */
+const cam = { az:-0.7, pol:1.15, rad:1500, min:250, max:6000 };
+function applyCam(){
+  const s=Math.sin(cam.pol), x=cam.rad*s*Math.sin(cam.az), z=cam.rad*s*Math.cos(cam.az), y=cam.rad*Math.cos(cam.pol);
+  camera.position.set(camTarget.x+x, camTarget.y+y, camTarget.z+z);
+  camera.lookAt(camTarget);
+}
+(function controls(){
+  const el=renderer.domElement; let mode=null,lx=0,ly=0,pdist=0;
+  const pan=(dx,dy)=>{
+    const f=cam.rad*0.0016;
+    const right=new THREEr.Vector3().setFromMatrixColumn(camera.matrix,0);
+    const up=new THREEr.Vector3().setFromMatrixColumn(camera.matrix,1);
+    camTarget.addScaledVector(right,-dx*f); camTarget.addScaledVector(up,dy*f); applyCam();
+  };
+  const rot=(dx,dy)=>{ cam.az-=dx*0.0055; cam.pol=Math.max(0.12,Math.min(3.0,cam.pol-dy*0.0055)); applyCam(); };
+  el.addEventListener('pointerdown',e=>{ el.setPointerCapture(e.pointerId);
+    mode=(e.shiftKey||e.button===1||e.button===2)?'pan':'rot'; lx=e.clientX; ly=e.clientY; });
+  el.addEventListener('pointermove',e=>{ if(!mode)return; const dx=e.clientX-lx,dy=e.clientY-ly; lx=e.clientX; ly=e.clientY;
+    if(mode==='pan')pan(dx,dy); else rot(dx,dy); });
+  el.addEventListener('pointerup',()=>mode=null);
+  el.addEventListener('contextmenu',e=>e.preventDefault());
+  el.addEventListener('wheel',e=>{ e.preventDefault();
+    cam.rad=Math.max(cam.min,Math.min(cam.max,cam.rad*(1+Math.sign(e.deltaY)*0.09))); applyCam(); },{passive:false});
+  // touch
+  const tp={};
+  el.addEventListener('touchstart',e=>{ for(const t of e.changedTouches)tp[t.identifier]={x:t.clientX,y:t.clientY};
+    if(e.touches.length===2){const a=e.touches[0],b=e.touches[1];pdist=Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY);} },{passive:false});
+  el.addEventListener('touchmove',e=>{ e.preventDefault();
+    if(e.touches.length===1){const t=e.touches[0],o=tp[t.identifier];if(o){rot(t.clientX-o.x,t.clientY-o.y);o.x=t.clientX;o.y=t.clientY;}}
+    else if(e.touches.length===2){const a=e.touches[0],b=e.touches[1];
+      const d=Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY);
+      if(pdist)cam.rad=Math.max(cam.min,Math.min(cam.max,cam.rad*pdist/d)); pdist=d;
+      const oa=tp[a.identifier],ob=tp[b.identifier];
+      if(oa&&ob){const mx=((a.clientX-oa.x)+(b.clientX-ob.x))/2,my=((a.clientY-oa.y)+(b.clientY-ob.y))/2;pan(mx,my);}
+      for(const t of e.touches)if(tp[t.identifier]){tp[t.identifier].x=t.clientX;tp[t.identifier].y=t.clientY;} applyCam();}
+  },{passive:false});
+  el.addEventListener('touchend',e=>{for(const t of e.changedTouches)delete tp[t.identifier];pdist=0;});
+})();
+applyCam();
+
+/* ============================================================ LABELS */
+function makeLabel(text, color="#bfeaf5", scale=1){
+  const pad=10, fs=42*scale; const c=document.createElement('canvas'); const x=c.getContext('2d');
+  x.font=`600 ${fs}px ui-monospace,Menlo,monospace`; const w=x.measureText(text).width;
+  c.width=w+pad*2; c.height=fs+pad*2;
+  x.font=`600 ${fs}px ui-monospace,Menlo,monospace`; x.fillStyle="rgba(8,12,16,.72)";
+  roundRect(x,1,1,c.width-2,c.height-2,10); x.fill();
+  x.fillStyle=color; x.textBaseline="middle"; x.fillText(text,pad,c.height/2);
+  const tex=new THREEr.CanvasTexture(c); tex.minFilter=THREEr.LinearFilter;
+  const sp=new THREEr.Sprite(new THREEr.SpriteMaterial({map:tex,depthTest:false,depthWrite:false,transparent:true}));
+  sp.scale.set(c.width*0.32*scale, c.height*0.32*scale, 1); sp.renderOrder=999;
+  return sp;
+}
+function roundRect(c,x,y,w,h,r){c.beginPath();c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+h,r);c.arcTo(x+w,y+h,x,y+h,r);
+  c.arcTo(x,y+h,x,y,r);c.arcTo(x,y,x+w,y,r);c.closePath();}
+
+/* ============================================================ CYCLOIDAL DISK SHAPE */
+function diskShape(sc=1){
+  const N=CYC.N, Rr=CYC.pinCircleR*sc, e=CYC.ecc*sc, Rp=CYC.pinR*sc;
+  const steps=360, pts=[];
+  for(let i=0;i<=steps;i++){
+    const t=i/steps*Math.PI*2;
+    const x=Rr*Math.sin(t)+e*Math.sin(N*t), y=Rr*Math.cos(t)+e*Math.cos(N*t);
+    const dx=Rr*Math.cos(t)+e*N*Math.cos(N*t), dy=-Rr*Math.sin(t)-e*N*Math.sin(N*t);
+    const len=Math.hypot(dx,dy)||1; let nx=dy/len, ny=-dx/len;        // normal
+    if(nx*x+ny*y<0){nx=-nx;ny=-ny;}                                    // outward
+    pts.push(new THREEr.Vector2(x-nx*Rp, y-ny*Rp));                    // inset by pin radius
+  }
+  const sh=new THREEr.Shape(pts);
+  // center bore (eccentric bearing)
+  const bore=new THREEr.Path(); bore.absarc(0,0,CYC.bearOuter/2*sc,0,Math.PI*2,true); sh.holes.push(bore);
+  // output pin moving holes
+  for(let i=0;i<CYC.outPinN;i++){
+    const ang=i/CYC.outPinN*Math.PI*2, hx=Math.cos(ang)*CYC.outPinCircleR*sc, hy=Math.sin(ang)*CYC.outPinCircleR*sc;
+    const h=new THREEr.Path(); h.absarc(hx,hy,(CYC.outPinR+CYC.ecc+0.4)*sc,0,Math.PI*2,true); sh.holes.push(h);
+  }
+  return sh;
+}
+
+/* ============================================================ BUILD ONE CYCLOIDAL DRIVE
+   Local frame: output axis = +Y. Stack (low→high along +Y):
+   motor (below 0) | flange/base @0 | ring+pins cavity | output hub on top.
+   Returns {group, layers:{motor,housing,disk,hub}} for exploded view.            */
+function buildDrive(sc=1, withMotor=true){
+  const g=new THREEr.Group();
+  const flangeT=CYC.flangeT*sc, ringH=CYC.ringH*sc, outerR=CYC.outerR*sc, pinR=CYC.pinR*sc;
+  const layers={motor:new THREEr.Group(),housing:new THREEr.Group(),disk:new THREEr.Group(),hub:new THREEr.Group()};
+
+  // ---- motor (NEMA17 box) below flange, shaft up into cam ----
+  if(withMotor){
+    const mb=42.3*sc, ml=46*sc;
+    const body=new THREEr.Mesh(new THREEr.BoxGeometry(mb,ml,mb),M.motor);
+    body.rotation.x=Math.PI/2; body.position.y=-(flangeT+ml/2+1*sc);
+    layers.motor.add(body);
+    const boss=cyl(11*sc,11*sc,2*sc,24,M.steel); boss.position.y=-flangeT-0.5*sc; layers.motor.add(boss);
+    const shaft=cyl(2.5*sc,2.5*sc,flangeT+10*sc,16,M.steel); shaft.position.y=(10*sc-flangeT)/2; layers.motor.add(shaft);
+  }
+
+  // ---- flange / base plate ----
+  const flange=cyl(outerR,outerR,flangeT,64,M.housing); flange.position.y=flangeT/2; layers.housing.add(flange);
+
+  // ---- housing wall ring (open top) ----
+  const wallOuter=outerR, wallInner=(CYC.pinCircleR+CYC.pinR+0.4)*sc;
+  const ring=ringMesh(wallInner,wallOuter,ringH,M.housing); ring.position.y=flangeT+ringH/2; layers.housing.add(ring);
+
+  // ---- ring pins (steel rollers) via instancing ----
+  const pinGeo=new THREEr.CylinderGeometry(pinR,pinR,ringH*0.96,12);
+  const pins=new THREEr.InstancedMesh(pinGeo,M.steel,CYC.N); const mtx=new THREEr.Matrix4();
+  for(let i=0;i<CYC.N;i++){
+    const a=i/CYC.N*Math.PI*2;
+    mtx.makeTranslation(Math.cos(a)*CYC.pinCircleR*sc, flangeT+ringH/2, Math.sin(a)*CYC.pinCircleR*sc);
+    pins.setMatrixAt(i,mtx);
+  }
+  pins.instanceMatrix.needsUpdate=true; layers.housing.add(pins);
+
+  // ---- eccentric bearing (steel) at center ----
+  const bear=ringMesh(CYC.bearInner/2*sc,CYC.bearOuter/2*sc,CYC.bearW*sc,M.steel);
+  bear.position.y=flangeT+ringH*0.5; layers.housing.add(bear);
+
+  // ---- cycloidal disk(s) — orange printed, offset by eccentricity ----
+  const shp=diskShape(sc);
+  const dgeo=new THREEr.ExtrudeGeometry(shp,{depth:CYC.diskT*sc,bevelEnabled:false,curveSegments:24});
+  dgeo.rotateX(-Math.PI/2);                          // extrude along +Y
+  const d1=new THREEr.Mesh(dgeo,M.pla);
+  d1.position.set(CYC.ecc*sc,flangeT+0.3*sc,0);
+  layers.disk.add(d1);
+  if(CYC.dualDisk){
+    const d2=new THREEr.Mesh(dgeo,M.pla2);
+    d2.position.set(-CYC.ecc*sc,flangeT+CYC.diskT*sc+CYC.diskGap*sc+0.3*sc,0);
+    d2.rotation.y=Math.PI/(CYC.N-1);                 // 180° lobe phase
+    layers.disk.add(d2);
+  }
+
+  // ---- output hub on top + steel output dowels reaching down ----
+  const hubR=(CYC.outPinCircleR+5)*sc, hubT=5*sc, topY=flangeT+ringH;
+  const hub=cyl(hubR,hubR,hubT,48,M.pla2); hub.position.y=topY+hubT/2; layers.hub.add(hub);
+  const center=cyl(CYC.bearInner/2*sc+1*sc,CYC.bearInner/2*sc+1*sc,3*sc,24,M.pla2);
+  center.position.y=topY+hubT+1*sc; layers.hub.add(center);
+  const dwGeo=new THREEr.CylinderGeometry(CYC.outPinR*sc,CYC.outPinR*sc,ringH*0.9,14);
+  const dw=new THREEr.InstancedMesh(dwGeo,M.steel,CYC.outPinN); const m2=new THREEr.Matrix4();
+  for(let i=0;i<CYC.outPinN;i++){const a=i/CYC.outPinN*Math.PI*2;
+    m2.makeTranslation(Math.cos(a)*CYC.outPinCircleR*sc, flangeT+ringH*0.5, Math.sin(a)*CYC.outPinCircleR*sc);
+    dw.setMatrixAt(i,m2);}
+  dw.instanceMatrix.needsUpdate=true; layers.hub.add(dw);
+
+  g.add(layers.motor,layers.housing,layers.disk,layers.hub);
+  g.userData.layers=layers; g.userData.sc=sc; g.userData.topY=topY;
+  return g;
+}
+function cyl(rt,rb,h,seg,mat){return new THREEr.Mesh(new THREEr.CylinderGeometry(rt,rb,h,seg),mat);}
+function ringMesh(ri,ro,h,mat){
+  const s=new THREEr.Shape(); s.absarc(0,0,ro,0,Math.PI*2,false);
+  const hole=new THREEr.Path(); hole.absarc(0,0,ri,0,Math.PI*2,true); s.holes.push(hole);
+  const geo=new THREEr.ExtrudeGeometry(s,{depth:h,bevelEnabled:false,curveSegments:48}); geo.rotateX(-Math.PI/2);
+  const m=new THREEr.Mesh(geo,mat); m.position.y=h/2; return m;
+}
+
+/* ============================================================ BELT STAGE (J1) */
+function buildBelt(){
+  const g=new THREEr.Group();
+  const bigR=44, smR=15;
+  const big=cyl(bigR,bigR,12,40,M.pla); big.position.y=6; g.add(big);
+  const teeth=ringMesh(bigR-3,bigR,13,M.pla2); teeth.position.y=6.5; g.add(teeth);
+  // motor offset to the side w/ small pulley
+  const off=new THREEr.Vector3(bigR+smR+14,0,8);
+  const mb=42.3, ml=46;
+  const body=new THREEr.Mesh(new THREEr.BoxGeometry(mb,ml,mb),M.motor);
+  body.rotation.x=Math.PI/2; body.position.set(off.x,-ml/2-2,off.z); g.add(body);
+  const sm=cyl(smR,smR,12,28,M.steel); sm.position.set(off.x,6,off.z); g.add(sm);
+  // belt as two slabs tangent-ish
+  for(const s of [1,-1]){
+    const dx=off.x, dz=off.z, len=Math.hypot(dx,dz), ang=Math.atan2(dz,dx);
+    const belt=new THREEr.Mesh(new THREEr.BoxGeometry(len,9,2.4),M.belt);
+    belt.position.set(dx/2, 6, dz/2 + s*(bigR*0.0));
+    belt.rotation.y=-ang;
+    belt.position.x+=Math.sin(ang)*s*bigR*0.0;
+    // offset perpendicular so two strands flank the pulleys
+    const px=-Math.sin(ang)*s*(smR*0.9), pz=Math.cos(ang)*s*(smR*0.9);
+    belt.position.x+=px; belt.position.z+=pz;
+    g.add(belt);
+  }
+  g.userData.belt=true;
+  return g;
+}
+
+/* ============================================================ BUILD ARM (FK hierarchy) */
+let arm, jointRefs=[], massNodes=[], axisHelpers=[], dimGroup, eeNode;
+function buildArm(){
+  if(arm){scene.remove(arm);} jointRefs=[]; massNodes=[]; axisHelpers=[];
+  arm=new THREEr.Group(); scene.add(arm);
+
+  // base pedestal
+  const ped=cyl(70,82,LINK.baseH,48,M.pla2); ped.position.y=LINK.baseH/2; arm.add(ped);
+  const plate=cyl(95,95,8,48,M.motor); plate.position.y=4; arm.add(plate);
+
+  // ---------- J1 (yaw, belt) ----------
+  const j1fix=new THREEr.Group(); j1fix.position.y=LINK.baseH; arm.add(j1fix);
+  const belt=buildBelt(); j1fix.add(belt);
+  const j1=new THREEr.Group(); j1.position.y=LINK.baseH+14; arm.add(j1);   // rotates about Y
+  jointRefs.push({def:STATE.joints[0], pivot:j1, axis:new THREEr.Vector3(0,1,0)});
+  addAxis(j1fix, new THREEr.Vector3(0,1,0), "J1·yaw", 0x39c2e0, 60);
+
+  // riser up to shoulder
+  const riser=beam(34,34,LINK.riser,M.link); riser.position.y=LINK.riser/2; j1.add(riser);
+  const shoulderY=LINK.riser;
+
+  // ---------- J2 (shoulder pitch) ---------- axis local X
+  const j2anchor=new THREEr.Group(); j2anchor.position.y=shoulderY; j1.add(j2anchor);
+  placeDrive(j2anchor, "x");                                   // housing fixed to proximal
+  const j2=new THREEr.Group(); j2.position.y=shoulderY; j1.add(j2);
+  jointRefs.push({def:STATE.joints[1], pivot:j2, axis:new THREEr.Vector3(1,0,0)});
+  addAxis(j2anchor, new THREEr.Vector3(1,0,0), "J2·pitch", 0x39c2e0, 70);
+  attachHub(j2, "x");
+
+  // upper arm link (along +Y in home)
+  const upper=beam(40,30,LINK.upper,M.link); upper.position.y=LINK.upper/2; j2.add(upper);
+  // mass: upper-arm link handled via massNodes below
+
+  // ---------- J3 (elbow pitch) ----------
+  const j3anchor=new THREEr.Group(); j3anchor.position.y=LINK.upper; j2.add(j3anchor);
+  placeDrive(j3anchor,"x");
+  const j3=new THREEr.Group(); j3.position.y=LINK.upper; j2.add(j3);
+  jointRefs.push({def:STATE.joints[2], pivot:j3, axis:new THREEr.Vector3(1,0,0)});
+  addAxis(j3anchor,new THREEr.Vector3(1,0,0),"J3·pitch",0x39c2e0,60);
+  attachHub(j3,"x");
+
+  const fore=beam(34,26,230,M.link); fore.position.y=115; j3.add(fore);
+
+  // ---------- J4 (wrist roll) ---------- axis local Y (along forearm)
+  const j4anchor=new THREEr.Group(); j4anchor.position.y=230; j3.add(j4anchor);
+  placeDrive(j4anchor,"y",0.62);
+  const j4=new THREEr.Group(); j4.position.y=230; j3.add(j4);
+  jointRefs.push({def:STATE.joints[3], pivot:j4, axis:new THREEr.Vector3(0,1,0)});
+  addAxis(j4anchor,new THREEr.Vector3(0,1,0),"J4·roll",0x9ad0e6,42);
+  attachHub(j4,"y",0.62);
+
+  const wristStub=beam(26,22,40,M.link); wristStub.position.y=20; j4.add(wristStub);
+
+  // ---------- J5 (wrist pitch) ----------
+  const j5anchor=new THREEr.Group(); j5anchor.position.y=40; j4.add(j5anchor);
+  placeDrive(j5anchor,"x",0.62);
+  const j5=new THREEr.Group(); j5.position.y=40; j4.add(j5);
+  jointRefs.push({def:STATE.joints[4], pivot:j5, axis:new THREEr.Vector3(1,0,0)});
+  addAxis(j5anchor,new THREEr.Vector3(1,0,0),"J5·pitch",0x39c2e0,42);
+  attachHub(j5,"x",0.62);
+
+  const wrist=beam(22,20,LINK.wrist,M.link); wrist.position.y=LINK.wrist/2; j5.add(wrist);
+
+  // ---------- J6 (end roll) ----------
+  const j6anchor=new THREEr.Group(); j6anchor.position.y=LINK.wrist; j5.add(j6anchor);
+  placeDrive(j6anchor,"y",0.5);
+  const j6=new THREEr.Group(); j6.position.y=LINK.wrist; j5.add(j6);
+  jointRefs.push({def:STATE.joints[5], pivot:j6, axis:new THREEr.Vector3(0,1,0)});
+  addAxis(j6anchor,new THREEr.Vector3(0,1,0),"J6·roll",0x9ad0e6,34);
+  attachHub(j6,"y",0.5);
+
+  // end-effector flange + simple gripper
+  eeNode=new THREEr.Group(); eeNode.position.y=12; j6.add(eeNode);
+  const fl=cyl(18,18,6,28,M.pla2); eeNode.add(fl);
+  for(const s of [1,-1]){const f=beam(5,8,34,M.pla); f.position.set(s*9,20,0); eeNode.add(f);}
+
+  // ---------- attach lumped masses as nodes (for torque + optional viz) ----------
+  const pivots=[j1,j2,j3,j4,j5,j6];
+  for(const mm of MASSES){
+    const node=new THREEr.Group(); node.position.y=mm.along;
+    pivots[mm.joint].add(node);
+    node.userData={mass:mm.m, label:mm.label, key:mm.label};
+    if(mm.label==="payload") node.userData.payload=true;
+    const dot=new THREEr.Mesh(new THREEr.SphereGeometry(9,16,16),
+      new THREEr.MeshStandardMaterial({color:0xf06c5e,emissive:0x3a0d08,roughness:.5}));
+    node.add(dot); node.userData.dot=dot; dot.visible=false;
+    massNodes.push(node);
+  }
+
+  buildDims();
+  refreshVisToggles();
+}
+
+function beam(w,d,len,mat){ // structural link beam along +Y, rounded look via two boxes
+  const g=new THREEr.Group();
+  const b=new THREEr.Mesh(new THREEr.BoxGeometry(w,len,d),mat); g.add(b);
+  // chamfer caps
+  const cap=new THREEr.Mesh(new THREEr.CylinderGeometry(d*0.5,d*0.5,w,18),mat);
+  cap.rotation.z=Math.PI/2; cap.position.y=len/2; g.add(cap);
+  const cap2=cap.clone(); cap2.position.y=-len/2; g.add(cap2);
+  return g;
+}
+function placeDrive(parent, axisDir, sc=0.78){
+  const d=buildDrive(sc, true);
+  orientDrive(d, axisDir);
+  d.userData.role="fixed"; parent.add(d); parent.userData.drive=d;
+}
+function attachHub(pivot, axisDir, sc=0.78){
+  // a thin hub disc on the rotating side to show "this rotates with the joint"
+  const r=(CYC.outPinCircleR+6)*sc;
+  const hub=cyl(r,r,4*sc,40,M.pla);
+  orientPlate(hub,axisDir);
+  pivot.add(hub);
+}
+function orientDrive(d, axisDir){
+  // drive built along +Y; rotate so output axis matches joint axis
+  if(axisDir==="x"){ d.rotation.z=Math.PI/2; }     // +Y -> +X
+  else if(axisDir==="z"){ d.rotation.x=-Math.PI/2; }
+  // "y" stays
+}
+function orientPlate(m, axisDir){
+  if(axisDir==="x"){ m.rotation.z=Math.PI/2; }
+}
+function addAxis(parent, axisLocal, text, color, len){
+  const dir=axisLocal.clone().normalize();
+  const ar=new THREEr.ArrowHelper(dir,new THREEr.Vector3(0,0,0),len,color,len*0.28,len*0.16);
+  const ar2=new THREEr.ArrowHelper(dir.clone().negate(),new THREEr.Vector3(0,0,0),len*0.55,color,len*0.2,len*0.12);
+  parent.add(ar,ar2);
+  const lab=makeLabel(text,"#cdeefa",0.78); lab.position.copy(dir.clone().multiplyScalar(len+22));
+  parent.add(lab);
+  axisHelpers.push(ar,ar2,lab);
+}
+
+/* dimension annotations */
+function buildDims(){
+  dimGroup=new THREEr.Group(); arm.add(dimGroup);
+  const segs=[["upper arm 330",LINK.upper],["forearm 270",LINK.fore],["wrist 100",LINK.wrist]];
+  // simple floating tags placed in home pose along Y
+  let y=LINK.baseH+LINK.riser;
+  for(const [txt,L] of segs){
+    const lab=makeLabel(txt,"#9fb6c8",0.7); lab.position.set(120,y+L/2,0); dimGroup.add(lab);
+    y+=L;
+  }
+  const reach=makeLabel("Σ reach 700 mm","#7fe0f0",0.78);
+  reach.position.set(-150,LINK.baseH+LINK.riser+350,0); dimGroup.add(reach);
+}
+
+/* ============================================================ INSPECT-DRIVE SCENE */
+let inspectGroup=null, inspectLabels=[];
+function buildInspect(){
+  if(inspectGroup){scene.remove(inspectGroup);}
+  inspectGroup=new THREEr.Group(); inspectGroup.position.y=180; scene.add(inspectGroup);
+  const d=buildDrive(2.4,true); inspectGroup.add(d); inspectGroup.userData.drive=d;
+  // labels for each layer
+  const sc=2.4, topY=CYC.housingH*sc;
+  const labs=[
+    ["NEMA17 stepper", new THREEr.Vector3(150, -CYC.flangeT*sc-46*sc, 0), "#9fb6c8"],
+    ["base / flange",  new THREEr.Vector3(150, CYC.flangeT*sc*0.5, 0), "#e0a96d"],
+    [CYC.N+" steel ring pins", new THREEr.Vector3(150, CYC.flangeT*sc+CYC.ringH*sc*0.5, 0), "#b9c2cb"],
+    ["cycloidal disk ×2 ("+(CYC.N-1)+" lobes)", new THREEr.Vector3(-160, CYC.flangeT*sc+CYC.ringH*sc*0.5, 0), "#e08a3c"],
+    ["eccentric bearing 6900", new THREEr.Vector3(0, CYC.flangeT*sc+CYC.ringH*sc+30, 0), "#b9c2cb"],
+    ["output hub + "+CYC.outPinN+" dowels", new THREEr.Vector3(150, topY+30, 0), "#cf9a5e"],
+  ];
+  inspectLabels=[];
+  for(const [t,p,c] of labs){const l=makeLabel(t,c,0.95); l.position.copy(p); inspectGroup.add(l); inspectLabels.push(l);}
+}
+
+/* ============================================================ POSE + EXPLODE + TORQUE */
+function applyPose(){
+  for(const jr of jointRefs){
+    const a=jr.def.a*d2r;
+    jr.pivot.rotation.set(0,0,0);
+    if(jr.axis.x) jr.pivot.rotation.x=a;
+    else if(jr.axis.z) jr.pivot.rotation.z=a;
+    else jr.pivot.rotation.y=a;
+  }
+  scene.updateMatrixWorld(true);
+  computeTorques();
+}
+function applyExplode(){
+  const ex=STATE.explode;
+  // explode the inspect drive (in drive mode) or every drive in the arm
+  const drives=[];
+  if(STATE.mode==="drive" && inspectGroup) drives.push(inspectGroup.userData.drive);
+  else scene.traverse(o=>{ if(o.userData&&o.userData.layers) drives.push(o); });
+  for(const d of drives){
+    const L=d.userData.layers, sc=d.userData.sc||1, s=18*sc;
+    L.motor.position.y=-ex*s*2.2;
+    L.housing.position.y=0;
+    L.disk.position.y=ex*s*1.2;
+    L.hub.position.y=ex*s*2.4;
+  }
+}
+
+let lastTorques=[];
+function computeTorques(){
+  const gvec=new THREEr.Vector3(0,-G,0);
+  // refresh payload mass on its node
+  for(const n of massNodes) if(n.userData.payload) n.userData.mass=STATE.payload;
+  // world pos of masses
+  const mp=massNodes.map(n=>{const p=new THREEr.Vector3(); n.getWorldPosition(p); return {p, m:n.userData.mass, node:n};});
+  lastTorques=[];
+  for(const jr of jointRefs){
+    const jp=new THREEr.Vector3(); jr.pivot.getWorldPosition(jp);
+    const axisW=jr.axis.clone().applyQuaternion(jr.pivot.getWorldQuaternion(new THREEr.Quaternion())).normalize();
+    let tau=0;
+    for(const o of mp){
+      if(!isDescendant(o.node, jr.pivot)) continue;          // only distal masses
+      const r=o.p.clone().sub(jp).multiplyScalar(0.001);     // mm -> m
+      const F=gvec.clone().multiplyScalar(o.m);
+      const mom=new THREEr.Vector3().crossVectors(r,F);
+      tau+=mom.dot(axisW);
+    }
+    lastTorques.push(Math.abs(tau));
+  }
+  updateTorqueUI();
+}
+function isDescendant(node, anc){ let p=node; while(p){ if(p===anc) return true; p=p.parent; } return false; }
+
+/* ============================================================ RENDER LOOP */
+function resize(){ const w=stage.clientWidth,h=stage.clientHeight;
+  renderer.setSize(w,h); camera.aspect=w/h; camera.updateProjectionMatrix(); }
+window.addEventListener('resize',resize);
+function tick(){ requestAnimationFrame(tick);
+  if(STATE.show.axes) for(const a of axisHelpers) a.visible=(STATE.mode==="arm");
+  renderer.render(scene,camera);
+}
+buildArm(); buildInspect(); inspectGroup.visible=false;
+resize(); tick();   // start rendering in home pose; pose+torque kicked off at end (after UI)
+
+/* ============================================================ UI BUILD */
+const scroll=document.getElementById('scroll');
+function section(title, openByDefault=true){
+  const s=document.createElement('div'); s.className='sec'+(openByDefault?'':' closed');
+  s.innerHTML=`<div class="h"><span>${title}</span><span class="ar">▼</span></div><div class="body"></div>`;
+  s.querySelector('.h').onclick=()=>s.classList.toggle('closed');
+  scroll.appendChild(s); return s.querySelector('.body');
+}
+function slider(parent,label,min,max,val,step,unit,oninput){
+  const r=document.createElement('div'); r.className='row';
+  r.innerHTML=`<label>${label}</label><input type=range min=${min} max=${max} value=${val} step=${step}><span class="val"></span>`;
+  const inp=r.querySelector('input'), v=r.querySelector('.val');
+  const upd=()=>{ v.textContent=(+inp.value).toFixed(step<1?(step<0.1?2:1):0)+(unit||''); };
+  inp.oninput=()=>{ upd(); oninput(+inp.value); }; upd(); parent.appendChild(r); return inp;
+}
+function toggle(parent,label,key){
+  const t=document.createElement('div'); t.className='tgl'+(getShow(key)?' on':'');
+  t.innerHTML=`<span>${label}</span><span class="dot"></span>`;
+  t.onclick=()=>{ setShow(key,!getShow(key)); t.classList.toggle('on'); refreshVisToggles(); };
+  parent.appendChild(t);
+}
+function getShow(k){return STATE.show[k];} function setShow(k,v){STATE.show[k]=v;}
+
+/* ---- joints / pose ---- */
+const poseBody=section("Pose · joint angles");
+const sliderRefs=[];
+STATE.joints.forEach((j,i)=>{
+  const s=slider(poseBody, `${j.id} ${j.name}`, j.min, j.max, j.a, 1, '°', v=>{ j.a=v; applyPose(); });
+  sliderRefs.push(s);
+});
+const presetBody=section("Presets");
+const pb=document.createElement('div'); pb.className='btns'; presetBody.appendChild(pb);
+function preset(name, angles, payload){
+  const b=document.createElement('button'); b.textContent=name;
+  b.onclick=()=>{ STATE.joints.forEach((j,i)=>{ j.a=angles[i]; sliderRefs[i].value=angles[i];
+    sliderRefs[i].dispatchEvent(new Event('input')); }); 
+    if(payload!=null){ STATE.payload=payload; payloadSlider.value=payload*1000; payloadSlider.dispatchEvent(new Event('input')); }
+    applyPose(); };
+  pb.appendChild(b);
+}
+preset("Home (up)",        [0,0,0,0,0,0]);
+preset("Horizontal worst-case", [0,90,0,0,0,0], 0.50);
+preset("Reach forward",    [0,60,60,0,30,0], 0.10);
+preset("Folded / park",    [0,-80,140,0,60,0]);
+preset("Pick low",         [30,75,40,0,55,0], 0.10);
+const presetNote=document.createElement('div'); presetNote.className='mini';
+presetNote.textContent="“Horizontal worst-case” reproduces the research static torques (≈11.4 / 4.5 / 0.7 N·m at J2/J3/J5, payload 0.5 kg).";
+presetBody.appendChild(presetNote);
+
+/* ---- view ---- */
+const viewBody=section("View");
+toggle(viewBody,"Rotation axes + labels","axes");
+toggle(viewBody,"Center-of-mass markers","masses");
+toggle(viewBody,"Dimension tags","dims");
+slider(viewBody,"Exploded view",0,1,0,0.01,'', v=>{ STATE.explode=v; applyExplode(); });
+
+/* ---- sizing / torque ---- */
+const sizeBody=section("Sizing · payload & margins");
+const payloadSlider=slider(sizeBody,"Payload",0,1000,STATE.payload*1000,10,' g', v=>{ STATE.payload=v/1000; computeTorques(); });
+slider(sizeBody,"Drive efficiency η",0.5,0.95,STATE.eta,0.01,'', v=>{ STATE.eta=v; updateTorqueUI(); });
+slider(sizeBody,"Safety factor",1,3.5,STATE.sf,0.1,'×', v=>{ STATE.sf=v; updateTorqueUI(); });
+const sizeNote=document.createElement('div'); sizeNote.className='mini';
+sizeNote.innerHTML="Output budget = ratio × (0.5·holding) × η.  Required = live gravity torque × SF.  "+
+  "PLA+ ceiling (est.) ≈ <b id=plaShow></b> N·m at Ø"+(CYC.pinCircleR*2)+" pin circle.";
+sizeBody.appendChild(sizeNote);
+
+/* ---- per-joint torque cards ---- */
+const torqueBody=section("Joint torque check");
+const cardWrap=document.createElement('div'); torqueBody.appendChild(cardWrap);
+const cards=[];
+STATE.joints.forEach((j,i)=>{
+  const c=document.createElement('div'); c.className='jcard';
+  c.innerHTML=`<div class="top"><div class="nm">${j.id} <span>${j.name} · ${j.drive}</span></div><div class="st"></div></div>
+    <div class="row" style="margin:6px 0 2px"><select class="mtr"></select></div>
+    <div class="row" style="margin:4px 0"><label style="width:64px;font-size:10.5px">ratio 1:</label>
+      <input type=range min=8 max=80 value=${j.ratio} step=1 style="flex:1"><span class="val rr"></span></div>
+    <div class="meter"><i></i></div>
+    <div class="nums"><span>need <b class="need"></b></span><span>have <b class="have"></b> N·m</span></div>`;
+  // motor dropdown
+  const sel=c.querySelector('.mtr');
+  for(const mn of Object.keys(MOTORS)){const o=document.createElement('option');o.value=mn;o.textContent=mn+"  ("+MOTORS[mn].toFixed(2)+")";if(mn===j.motor)o.selected=true;sel.appendChild(o);}
+  sel.onchange=()=>{ j.motor=sel.value; updateTorqueUI(); };
+  const rr=c.querySelector('input[type=range]'), rv=c.querySelector('.rr');
+  rr.oninput=()=>{ j.ratio=+rr.value; rv.textContent=rr.value; updateTorqueUI(); }; rv.textContent=j.ratio;
+  cardWrap.appendChild(c); cards.push(c);
+});
+
+/* ---- geometry (drive) ---- */
+const geoBody=section("Cycloidal geometry (from .fs)", false);
+slider(geoBody,"Ring pins N",6,60,CYC.N,1,'', v=>{ CYC.N=v; rebuildGeo(); });
+slider(geoBody,"Pin circle R",18,80,CYC.pinCircleR,1,' mm', v=>{ CYC.pinCircleR=v; CYC.outerR=v+CYC.pinR+CYC.wallT; STATE.plaCeil=plaCeiling(); rebuildGeo(); });
+slider(geoBody,"Eccentricity e",0.4,3,CYC.ecc,0.1,' mm', v=>{ CYC.ecc=v; rebuildGeo(); });
+slider(geoBody,"Disk thickness",4,14,CYC.diskT,1,' mm', v=>{ CYC.diskT=v; CYC.ringH=CYC.dualDisk?(2*CYC.diskT+CYC.diskGap):CYC.diskT; CYC.housingH=CYC.flangeT+CYC.ringH; rebuildGeo(); });
+const geoNote=document.createElement('div'); geoNote.className='mini';
+geoNote.innerHTML="Defaults match your script: N=25 → 25:1, lobes=24, dual disk 180°, output 6×Ø5 dowels, ecc-bearing 6900.";
+geoBody.appendChild(geoNote);
+
+function rebuildGeo(){
+  STATE.subhead && updateSubhead();
+  buildArm(); buildInspect();
+  inspectGroup.visible=(STATE.mode==="drive"); arm.visible=(STATE.mode==="arm");
+  applyPose(); applyExplode();
+  document.getElementById('subhead').textContent=`6-DOF · ${CYC.N}:1 cycloidal + belt`;
+  const ps=document.getElementById('plaShow'); if(ps)ps.textContent=STATE.plaCeil.toFixed(0);
+}
+function updateSubhead(){}
+
+/* ---- mode pill ---- */
+const mArm=document.getElementById('mArm'), mDrive=document.getElementById('mDrive');
+function setMode(m){
+  STATE.mode=m; mArm.classList.toggle('on',m==="arm"); mDrive.classList.toggle('on',m==="drive");
+  arm.visible=(m==="arm"); dimGroup&&(dimGroup.visible=(m==="arm"&&STATE.show.dims));
+  inspectGroup.visible=(m==="drive");
+  if(m==="drive"){ camTarget.set(0,260,0); cam.rad=620; } else { camTarget.set(0,360,0); cam.rad=1500; }
+  applyCam(); applyExplode();
+}
+mArm.onclick=()=>setMode("arm"); mDrive.onclick=()=>setMode("drive");
+
+/* ---- vis toggles ---- */
+function refreshVisToggles(){
+  for(const n of massNodes){ if(n.userData.dot) n.userData.dot.visible=STATE.show.masses; }
+  if(dimGroup) dimGroup.visible=(STATE.mode==="arm"&&STATE.show.dims);
+  for(const a of axisHelpers) a.visible=(STATE.show.axes&&STATE.mode==="arm");
+}
+
+/* ---- panel toggle (mobile) ---- */
+document.getElementById('panelToggle').onclick=()=>document.getElementById('panel').classList.toggle('open');
+
+/* ============================================================ UI UPDATE (numbers) */
+function updateTorqueUI(){
+  const ps=document.getElementById('plaShow'); if(ps)ps.textContent=STATE.plaCeil.toFixed(0);
+  STATE.joints.forEach((j,i)=>{
+    const need=(lastTorques[i]||0)*STATE.sf;
+    const running=MOTORS[j.motor]*0.5;
+    const have=running*j.ratio*STATE.eta;
+    const c=cards[i];
+    const ratio = have>0 ? need/have : 99;
+    let col=getCSS('--ok'), txt="OK";
+    if(ratio>1){col=getCSS('--over');txt="OVER";}
+    else if(ratio>0.8){col=getCSS('--warn');txt="TIGHT";}
+    // PLA ceiling flag (only meaningful for cyc drives)
+    let ceilFlag="";
+    if(j.drive==="cyc" && need>STATE.plaCeil){ ceilFlag=" ·PLA?"; if(ratio<=1){col=getCSS('--warn');txt="PLA?";} }
+    c.style.borderLeftColor=col;
+    const st=c.querySelector('.st'); st.textContent=txt; st.style.background=hexA(col,.16); st.style.color=col;
+    c.querySelector('.need').textContent=need.toFixed(2);
+    c.querySelector('.have').textContent=have.toFixed(2);
+    const bar=c.querySelector('.meter i'); bar.style.width=Math.min(100,ratio*100).toFixed(0)+'%'; bar.style.background=col;
+  });
+  updateHud();
+}
+function updateHud(){
+  const ee=new THREEr.Vector3(); if(eeNode) eeNode.getWorldPosition(ee);
+  const reach=Math.hypot(ee.x,ee.z).toFixed(0), height=ee.y.toFixed(0);
+  const total=MASSES.reduce((s,m)=>s+ (m.label==="payload"?STATE.payload:m.m),0);
+  // worst joint
+  let worst="—",wm=0; STATE.joints.forEach((j,i)=>{const r=(lastTorques[i]*STATE.sf)/(MOTORS[j.motor]*0.5*j.ratio*STATE.eta);if(r>wm){wm=r;worst=j.id;}});
+  document.getElementById('hudTop').innerHTML=
+    `<span class="k">EE</span> <b>x${ee.x.toFixed(0)} y${height} z${ee.z.toFixed(0)}</b> mm<br>`+
+    `<span class="k">reach</span> <b>${reach}</b> mm &nbsp; <span class="k">arm+load</span> <b>${total.toFixed(2)}</b> kg<br>`+
+    `<span class="k">tightest</span> <b style="color:${wm>1?getCSS('--over'):wm>0.8?getCSS('--warn'):getCSS('--ok')}">${worst} ${(wm*100).toFixed(0)}%</b>`;
+}
+function getCSS(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+function hexA(hex,a){const h=hex.replace('#','');const r=parseInt(h.substr(0,2),16),g=parseInt(h.substr(2,2),16),b=parseInt(h.substr(4,2),16);return `rgba(${r},${g},${b},${a})`;}
+
+document.getElementById('plaShow').textContent=STATE.plaCeil.toFixed(0);
+applyPose(); applyExplode(); updateTorqueUI();   // now safe: all UI elements exist
+</script>
+</body>
+</html>

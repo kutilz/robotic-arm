@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Data hasil benchmark (mentah/besar) — simpan sampel kecil saja
+benchmarks/data/*.png
+benchmarks/data/*_run*.csv
+
+# Skripsi: file kerja Word/temp (outline .md tetap di-track)
+thesis/*.docx
+thesis/~$*.docx
+thesis/*.pdf
+thesis/.~lock.*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+*.swp
+
+# Arduino build
+firmware/**/build/
+*.hex

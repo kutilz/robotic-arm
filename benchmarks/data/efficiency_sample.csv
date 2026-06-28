@@ -1,0 +1,4 @@
+joint,output_nm,input_nm,ratio
+J2,24.1,0.63,55
+J3,9.8,0.30,50
+J5,1.65,0.20,15
