@@ -48,3 +48,25 @@ def test_forward_kinematics_reach_within_envelope():
     # Pose lurus [0,0,0,0,0,0] -> jangkauan = total reach 0.70 m
     reach = reach_at([0, 0, 0, 0, 0, 0])
     assert reach == pytest.approx(C.TOTAL_REACH, abs=0.02)
+
+
+def test_encoder_hybrid_mapping():
+    # 4 sendi AS5600 + 2 sendi optik (sesuai budget)
+    enc = {j.name: j.encoder_type for j in C.JOINTS}
+    as5600 = [n for n, t in enc.items() if t == C.ENC_AS5600]
+    optical = [n for n, t in enc.items() if t == C.ENC_OPTICAL]
+    assert len(as5600) == 4
+    assert set(optical) == {"J4", "J6"}  # encoder optik di sendi roll
+
+
+def test_as5600_finer_than_optical_at_output():
+    by_name = {j.name: j for j in C.JOINTS}
+    # AS5600 12-bit di output (0.088°) lebih halus dari optik di poros motor
+    assert by_name["J5"].output_resolution_deg < by_name["J4"].output_resolution_deg
+
+
+def test_optical_output_resolution_matches_formula():
+    # 24 lubang x4 quadrature = 96 cpr -> 3.75°/count di disk;
+    # di output J4 (1:15) -> 3.75/15 = 0.25°
+    j4 = next(j for j in C.JOINTS if j.name == "J4")
+    assert j4.output_resolution_deg == pytest.approx(0.25, abs=1e-6)
