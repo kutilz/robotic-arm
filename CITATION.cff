@@ -1,0 +1,18 @@
+cff-version: 1.2.0
+message: "Jika Anda menggunakan proyek ini, mohon sitasi seperti di bawah."
+title: "Robotic Arm 6-DOF 3D Printed dengan Position Feedback dan Digital Twin Berbasis Web"
+type: software
+authors:
+  - given-names: Ilyas
+    alias: kutilz
+repository-code: "https://github.com/kutilz/robotic-arm"
+license: MIT
+version: 0.1.0
+keywords:
+  - robotic-arm
+  - 6-dof
+  - cycloidal-drive
+  - 3d-printed
+  - position-feedback
+  - digital-twin
+  - skripsi
