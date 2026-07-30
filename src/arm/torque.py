@@ -39,9 +39,22 @@ def required_ratio(required_nm: float, motor: C.Motor) -> float:
     return required_nm / (motor.running_torque_nm * C.CYCLOIDAL_EFFICIENCY)
 
 
-def delivered_output_torque(motor: C.Motor, ratio: float) -> float:
-    """Torsi output yang benar-benar dihasilkan motor pada reduksi tertentu."""
-    return motor.running_torque_nm * ratio * C.CYCLOIDAL_EFFICIENCY
+SERVO_DUTY_FRACTION = C.SERVO_DUTY_FRACTION  # alias, sumber di config.py
+
+
+def delivered_output_torque(motor: C.Motor, joint: C.JointSpec) -> float:
+    """Torsi output yang benar-benar dihasilkan drive sendi pada reduksinya.
+
+    Efisiensi ikut tipe transmisi (cycloidal, cycloidal+belt, belt):
+        cyc      -> running * ratio * eta_cyc
+        cyc-belt -> running * ratio * eta_cyc * eta_belt   (J3, ~4.56 N.m)
+        belt     -> running * ratio * eta_belt^stage       (J1)
+    Servo direct-drive (mis. MG996R, J5/J6) tidak melewati reduksi, torsinya
+    diderate langsung dari stall torque.
+    """
+    if joint.drive == C.DRIVE_SERVO:
+        return motor.holding_torque_nm * C.SERVO_DUTY_FRACTION
+    return motor.running_torque_nm * joint.ratio * joint.transmission_efficiency
 
 
 def output_speed_dps(ratio: float, input_rpm: float = 300.0) -> float:
@@ -72,7 +85,7 @@ def build_report() -> list[JointReport]:
     for j in C.JOINTS:
         motor = C.MOTORS[j.motor_key]
         req = required_output_torque(j.name)
-        delivered = delivered_output_torque(motor, j.ratio)
+        delivered = delivered_output_torque(motor, j)
         rows.append(
             JointReport(
                 name=j.name,
