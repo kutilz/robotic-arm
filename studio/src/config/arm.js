@@ -1,9 +1,9 @@
 /* ============================================================================
-   DATA / MODEL — geometri & rasio DIUKUR dari CAD (Testing Assembly.step);
-   payload 0.2 kg, reach ~604 mm dari J2.
+   DATA / MODEL — geometri & rasio DIUKUR dari CAD (Testing Assembly.step,
+   rev FINAL 2026-07-30); payload 0.2 kg, reach ~649 mm dari J2.
    Drivetrain FINAL: J1 belt HTD3M 2 stage 1:15 (17HS2401), J2 cycloidal DIRECT
    1:30 (17HS6401S), J3 belt 3:1 + cycloidal 1:10 = 1:30 (17HS2401),
-   J4 cycloidal 1:15 TENTATIVE (17HS2401), J5/J6 MG996R servo direct.
+   J4 cycloidal 1:15 (17HS2401, terkonfirmasi CAD), J5/J6 MG996R servo direct.
    Feedback: AS5600 di output J1..J4 (mux TCA9548A ch 0-3); J5/J6 pot internal
    servo -> ADC1 ESP32, tanpa mux. Faktor sizing & massa dari
    docs/research/arsitektur_final_robotic_arm_6dof.md. Sinkron src/arm/config.py.
@@ -33,13 +33,15 @@ export function recalcCyc() {
 }
 recalcCyc();
 
-// link segments (mm) — TERUKUR CAD: upper a2=288.1, forearm d4=220, wrist->EE d6=90
-export const LINK = { upper: 288, fore: 220, wrist: 14, j6gap: 14, ee: 62, baseH: 140 };
-// reach (J2->tip) = a2 288 + sqrt(a3 50^2 + d4 220^2) 226 + d6 90 = ~604 mm
+// link segments (mm) — TERUKUR CAD: upper a2=288.0, forearm d4=270, wrist->EE d6=90.6
+// wrist + j6gap + ee = 90 mm supaya rantai visual sama panjang dengan d6.
+export const LINK = { upper: 288, fore: 270, wrist: 14, j6gap: 14, ee: 62, baseH: 140 };
+// reach (J2->tip) = a2 288 + d4 270 + d6 90.6 = ~649 mm (a3 = 0, sumbu J3 & J4
+// berpotongan di CAD final; dulu a3 50 mm bikin reach ~604 mm)
 
-// parametric packaging offsets (mm) — TERUKUR CAD: shoulder a1=65.9, elbow a3=50
+// parametric packaging offsets (mm) — TERUKUR CAD: shoulder a1=65.9, elbow a3=0
 // (d1 base = 64.8 mm, base visual masih artistik menunggu impor mesh STEP)
-export const OFFS = { colH: 120, shoulder: 66, elbow: -50, fore: 0, w5: 0, w6: 0 };
+export const OFFS = { colH: 120, shoulder: 66, elbow: 0, fore: 0, w5: 0, w6: 0 };
 export const OFFS_RESEARCH = { colH: 120, shoulder: 66, elbow: -50, fore: 0, w5: 0, w6: 0 };
 export const OFFS_SEARAH = { colH: 120, shoulder: 35, elbow: 50, fore: 0, w5: 0, w6: 0 };
 export const OFFS_LAMA = { colH: 64, shoulder: 30, elbow: -26, fore: 0, w5: 0, w6: 0 };
@@ -63,22 +65,25 @@ export const FB_SERVO_POT = 'servo_pot'; // pot internal servo -> ADC1 ESP32
 // target: torsi output yang dibutuhkan (N·m), selaras torque.py.
 export const JDEF = [
   { id: 'J1', name: 'Base yaw',    kind: 'yaw',   drive: 'belt',     motor: '17HS2401',  ratio: 15, min: -180, max: 180, a: 0, target: 3,     fb: FB_AS5600,    encChan: 0 },
-  { id: 'J2', name: 'Shoulder',    kind: 'pitch', drive: 'cyc',      motor: '17HS6401S', ratio: 30, min: -95,  max: 95,  a: 0, target: 11.98, fb: FB_AS5600,    encChan: 1 },
-  { id: 'J3', name: 'Elbow',       kind: 'pitch', drive: 'cyc-belt', motor: '17HS2401',  ratio: 30, min: -150, max: 150, a: 0, target: 3.45,  fb: FB_AS5600,    encChan: 2 },
+  { id: 'J2', name: 'Shoulder',    kind: 'pitch', drive: 'cyc',      motor: '17HS6401S', ratio: 30, min: -95,  max: 95,  a: 0, target: 12.78, fb: FB_AS5600,    encChan: 1 },
+  { id: 'J3', name: 'Elbow',       kind: 'pitch', drive: 'cyc-belt', motor: '17HS2401',  ratio: 30, min: -150, max: 150, a: 0, target: 4.19,  fb: FB_AS5600,    encChan: 2 },
   { id: 'J4', name: 'Wrist roll',  kind: 'roll',  drive: 'cyc',      motor: '17HS2401',  ratio: 15, min: -180, max: 180, a: 0, target: 1,     fb: FB_AS5600,    encChan: 3 },
   { id: 'J5', name: 'Wrist pitch', kind: 'pitch', drive: 'servo',    motor: 'MG996R',    ratio: 1,  min: -120, max: 120, a: 0, target: 0.59,  fb: FB_SERVO_POT, encChan: null },
   { id: 'J6', name: 'End roll',    kind: 'roll',  drive: 'servo',    motor: 'MG996R',    ratio: 1,  min: -180, max: 180, a: 0, target: 0.3,   fb: FB_SERVO_POT, encChan: null },
 ];
 
 // lumped masses (kg) + attach joint (0-based) + jarak sepanjang link pivot (mm).
+// `along` di-rebase ke panjang link CAD final (upper 288, forearm 270) dengan
+// fraksi yang sama seperti MASSES di src/arm/config.py. Angka kg masih estimasi
+// dokumen riset — ganti setelah part tercetak ditimbang.
 export const MASSES = [
-  { label: 'upper-arm link',          m: 0.18,  joint: 1, along: 140 },
-  { label: 'J3 motor (proximal)',     m: 0.28,  joint: 1, along: 80 },
+  { label: 'upper-arm link',          m: 0.18,  joint: 1, along: 144 },
+  { label: 'J3 motor (proximal)',     m: 0.28,  joint: 1, along: 82 },
   { label: 'elbow cycloidal',         m: 0.15,  joint: 2, along: 0 },
-  { label: 'J4 motor (proximal)',     m: 0.226, joint: 2, along: 30 },
-  { label: 'J4 cycloidal',            m: 0.10,  joint: 2, along: 10 },
-  { label: 'forearm link',            m: 0.12,  joint: 2, along: 115 },
-  { label: 'J5 servo + roll housing', m: 0.12,  joint: 3, along: 244 },
+  { label: 'J4 motor (proximal)',     m: 0.226, joint: 2, along: 35 },
+  { label: 'J4 cycloidal',            m: 0.10,  joint: 2, along: 12 },
+  { label: 'forearm link',            m: 0.12,  joint: 2, along: 135 },
+  { label: 'J5 servo + roll housing', m: 0.12,  joint: 3, along: 294 },
   { label: 'J6 servo + EE struct',    m: 0.13,  joint: 4, along: 50 },
   { label: 'payload',                 m: 0.20,  joint: 5, along: 62 },
 ];

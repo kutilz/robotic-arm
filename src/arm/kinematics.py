@@ -18,16 +18,18 @@ from . import config as C
 
 # Tabel DH: (a, alpha, d, theta_offset) dalam meter dan radian.
 # Baris i menggambarkan transform dari frame i-1 ke frame i. Nilai diukur dari
-# CAD (Testing Assembly.step), lihat tabel di config.py. Ada offset perpendicular
-# siku a3 dan offset lateral bahu a1 yang dulu tidak dimodelkan (twin meleset
-# ~66 mm dan ~50 mm). Pergelangan bola J4/J5/J6 concurrent (Pieper terpenuhi).
+# CAD FINAL (Testing Assembly.step, rev 2026-07-30), lihat tabel di config.py.
+# Offset lateral bahu a1 tetap ada. Offset perpendicular siku a3 kini NOL:
+# di desain final sumbu J3 dan J4 benar-benar berpotongan, dan geseran lateral
+# yang dulu ditaruh di a3 sekarang jadi d3 (sepanjang sumbu J3, -11.8 mm).
+# Pergelangan bola J4/J5/J6 concurrent (Pieper terpenuhi, sisa <= 0.15 mm).
 DH_TABLE = [
-    (C.A1_SHOULDER_OFFSET, math.pi / 2,  C.D1_BASE,     0.0),  # J1 base yaw
-    (C.A2_UPPER_ARM,       0.0,          0.0,           0.0),  # J2 shoulder pitch
-    (C.A3_ELBOW_OFFSET,   -math.pi / 2,  0.0,           0.0),  # J3 elbow pitch
-    (0.0,                  math.pi / 2,  C.D4_FOREARM,  0.0),  # J4 wrist roll
-    (0.0,                 -math.pi / 2,  0.0,           0.0),  # J5 wrist pitch
-    (0.0,                  0.0,          C.D6_WRIST_TCP, 0.0),  # J6 end roll
+    (C.A1_SHOULDER_OFFSET, math.pi / 2,  C.D1_BASE,          0.0),  # J1 base yaw
+    (C.A2_UPPER_ARM,       0.0,          0.0,                0.0),  # J2 shoulder pitch
+    (C.A3_ELBOW_OFFSET,   -math.pi / 2,  C.D3_ELBOW_LATERAL, 0.0),  # J3 elbow pitch
+    (0.0,                  math.pi / 2,  C.D4_FOREARM,       0.0),  # J4 wrist roll
+    (0.0,                 -math.pi / 2,  0.0,                0.0),  # J5 wrist pitch
+    (0.0,                  0.0,          C.D6_WRIST_TCP,     0.0),  # J6 end roll
 ]
 
 

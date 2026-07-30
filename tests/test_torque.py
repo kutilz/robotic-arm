@@ -14,9 +14,12 @@ from arm.kinematics import reach_at
 
 # Torsi statik gravitasi worst-case (lengan horizontal) dari model massa lumped
 # di config.py, dengan sumbu sendi geometri DH terukur CAD.
+# Naik dari (4.79, 1.38, 0.23) setelah geometri di-rebase ke CAD final
+# 2026-07-30: lengan jadi lebih panjang (a2 288, d4 270, reach 649 mm) sehingga
+# semua lengan momen ikut memanjang. Massa kg-nya sendiri belum berubah.
 @pytest.mark.parametrize(
     "joint, expected_nm",
-    [("J2", 4.79), ("J3", 1.38), ("J5", 0.23)],
+    [("J2", 5.11), ("J3", 1.68), ("J5", 0.24)],
 )
 def test_static_torque_matches_research(joint, expected_nm):
     assert torque.static_torque(joint) == pytest.approx(expected_nm, abs=0.05)
@@ -28,8 +31,9 @@ def test_roll_yaw_joints_have_zero_gravity_torque():
 
 
 def test_required_output_applies_safety_factor():
-    # J2: 4.79 * 2.5 ~= 12 N.m (dokumen: target ~12 N.m)
-    assert torque.required_output_torque("J2") == pytest.approx(12.0, abs=0.5)
+    # J2: 5.11 * 2.5 ~= 12.8 N.m. Dokumen riset menulis ~12 N.m untuk lengan
+    # 600 mm; naik ke ~12.8 karena reach CAD final 649 mm.
+    assert torque.required_output_torque("J2") == pytest.approx(12.8, abs=0.5)
 
 
 def test_shoulder_is_direct_cycloidal_single_motor():
@@ -48,7 +52,7 @@ def test_final_reduction_ratios():
     assert ratios["J1"] == 15   # belt 2 stage: 12T->60T (5:1) x 20T->60T (3:1)
     assert ratios["J2"] == 30   # cycloidal 30 pin dowel -> 1:30
     assert ratios["J3"] == 30   # belt 20T->60T (3:1) x cycloidal 1:10
-    assert ratios["J4"] == 15   # cycloidal 1:15 (TENTATIVE)
+    assert ratios["J4"] == 15   # cycloidal 15 pin @R35 (terkonfirmasi CAD final)
     assert ratios["J5"] == 1    # servo direct drive
     assert ratios["J6"] == 1    # servo direct drive
 
@@ -87,16 +91,41 @@ def test_wrist_roll_and_end_roll_clear_margin():
 
 def test_forward_kinematics_home_pose_matches_cad_dh():
     # Pose nol DH (upper arm +X, forearm +Z): hasil rantai DH terukur CAD.
-    # Menjaga agar offset bahu a1 dan siku a3 tidak hilang lagi dari tabel.
+    # Menjaga agar offset bahu a1 dan geseran lateral siku d3 tidak hilang lagi
+    # dari tabel. Komponen y = 0.0118 m persis d3 (dulu 0 karena d3 dipaksa nol).
     from arm.kinematics import end_effector_position
 
     pos = end_effector_position([0, 0, 0, 0, 0, 0])
-    assert list(pos) == pytest.approx([0.4040, 0.0, 0.3748], abs=1e-3)
+    assert list(pos) == pytest.approx([0.35385, 0.0118, 0.42539], abs=1e-3)
+
+
+def test_elbow_axes_intersect_no_perpendicular_offset():
+    # CAD final: sumbu J3 dan J4 berpotongan (jarak common normal 0.00 mm),
+    # jadi a3 HARUS nol. Kalau ada yang menghidupkan lagi offset 50 mm lama,
+    # tabel DH dan IK closed-form ikut salah.
+    assert C.A3_ELBOW_OFFSET == 0.0
+
+
+def test_wrist_is_spherical_pieper_holds():
+    # Kriteria Pieper: 3 sumbu terakhir harus berpotongan di SATU titik supaya
+    # IK closed-form ada. Di tabel DH itu berarti origin frame J4, J5 dan J6
+    # berimpit di wrist center untuk sembarang sudut sendi.
+    import numpy as np
+
+    from arm.kinematics import joint_origins
+
+    for q in ([0, 0, 0, 0, 0, 0], [20, -35, 60, 45, -70, 110], [-90, 80, -120, 10, 95, -30]):
+        org = joint_origins(q)
+        wc = org[4]                      # origin frame setelah baris J4
+        assert np.linalg.norm(org[5] - wc) < 1e-9   # J5 di titik yang sama
+        assert np.linalg.norm(org[6] - wc) == pytest.approx(C.D6_WRIST_TCP, abs=1e-9)
 
 
 def test_max_reach_from_j2_reaches_design_target():
-    # Verifikasi jangkauan 600 mm benar tercapai: jarak maksimum TCP dari
-    # sumbu J2 harus mendekati REACH_FROM_J2 (~604 mm) dan >= target 600 mm.
+    # Verifikasi jangkauan: jarak maksimum TCP dari titik asal frame J2 harus
+    # mendekati REACH_FROM_J2 (~649 mm). Selisih ~0.1 mm terhadap rumus wajar
+    # karena rumus mengukur dari SUMBU J2 sedangkan tes ini dari TITIK asal
+    # frame J2, dan d3 menggeser TCP 11.8 mm sepanjang sumbu itu.
     import numpy as np
 
     from arm.kinematics import end_effector_position, joint_origins

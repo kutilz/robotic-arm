@@ -133,7 +133,7 @@ export function buildArm() {
   world.anchorRefs.push({ g: j2anchor, axis: 'x', sc: 0.85, type: 'cyc', motor: true });
 
   const upper = beam(40, 30, LINK.upper, M.link); upper.position.y = LINK.upper / 2; j2.add(upper);
-  skelSeg(j2, v3(0, 0, 0), v3(0, LINK.upper, 0), SKEL.link, 'upper 280');
+  skelSeg(j2, v3(0, 0, 0), v3(0, LINK.upper, 0), SKEL.link, `upper ${LINK.upper}`);
   world.regionObjs[1].push(shLink, j2anchor, hub2, upper);
 
   const j3motor = buildNema(0.62, 40); j3motor.rotation.z = -Math.PI / 2; j3motor.position.set(0, 72, -30); j2.add(j3motor);
@@ -166,7 +166,7 @@ export function buildArm() {
   world.anchorRefs.push({ g: j4anchor, axis: 'y', sc: 0.55, type: 'cyc', motor: true });
 
   const fore = beam(34, 26, LINK.fore, M.link); fore.position.y = LINK.fore / 2; j4.add(fore);
-  skelSeg(j4, v3(0, 0, 0), v3(0, LINK.fore, 0), SKEL.link, 'forearm 230');
+  skelSeg(j4, v3(0, 0, 0), v3(0, LINK.fore, 0), SKEL.link, `forearm ${LINK.fore}`);
   world.regionObjs[3].push(elbowBridge, j4anchor, hub4, fore);
 
   const wristY = LINK.fore;
@@ -205,7 +205,7 @@ export function buildArm() {
   world.eeNode = new THREE.Group(); world.eeNode.position.y = LINK.ee - 32; j6.add(world.eeNode);
   const fl = cyl(16, 16, 6, 28, M.pla2); world.eeNode.add(fl);
   for (const s of [1, -1]) { const f = beam(5, 8, 30, M.pla); f.position.set(s * 8, 18, 0); world.eeNode.add(f); }
-  skelSeg(j6, v3(0, 0, 0), v3(0, LINK.ee - 32, 0), SKEL.link, 'wrist->EE 90');
+  skelSeg(j6, v3(0, 0, 0), v3(0, LINK.ee - 32, 0), SKEL.link, `wrist->EE ${LINK.wrist + LINK.j6gap + LINK.ee}`);
   world.regionObjs[5].push(j6anchor, hub6, world.eeNode);
 
   const pivots = [j1, j2, j3, j4, j5, j6];

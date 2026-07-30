@@ -3,8 +3,13 @@
 Geometri (tabel DH, panjang link, offset) DIUKUR LANGSUNG dari file STEP
 assembly CAD (`Testing Assembly.step`; koordinat global CAD, Z ke atas, satuan
 mm dikonversi ke m di sini). Rasio reduksi dihitung dari jumlah pin ring
-cycloidal di STEP. Faktor sizing dan model massa mengikuti dokumen arsitektur
+cycloidal dan jumlah gigi pulley di STEP. Faktor sizing dan model massa
+mengikuti dokumen arsitektur
 (`docs/research/arsitektur_final_robotic_arm_6dof.md`).
+
+Angka geometri terakhir di-rebase 2026-07-30 ke assembly CAD FINAL (lengan
+sudah tercetak penuh, tinggal rakit). Jalankan `python tools/measure_cad_geometry.py`
+untuk mengukur ulang dari STEP kalau desain berubah lagi.
 
 Aktuator FINAL (dikonfirmasi user 2026-07-27):
     J1, J3, J4 : stepper 17HS2401  (holding 0.45 N.m, 1.7 A)
@@ -14,8 +19,11 @@ Transmisi FINAL:
     J1 belt HTD3M 2 stage 1:15 (12T->60T lalu 20T->60T)
     J2 cycloidal 1:30 (roller pin dowel 5 mm)
     J3 belt HTD3M 20T->60T (3:1) + cycloidal 1:10 = 1:30
-    J4 cycloidal 1:15 (TENTATIVE)
+    J4 cycloidal 1:15 (dikonfirmasi CAD final, tidak lagi tentatif)
     J5/J6 servo direct, tanpa reduksi
+Keenam rasio di atas terverifikasi dari CAD final: pin ring cycloidal
+J2=30 @R38, J3=10 @R30, J4=15 @R35; gigi pulley 12/60 dan 20/60 (J1),
+20/60 (belt J3).
 Umpan balik FINAL: 4x AS5600 di output J1..J4 via mux TCA9548A (channel 0-3);
 J5/J6 memakai potensiometer internal servo yang disadap ke ADC1 ESP32.
 
@@ -39,23 +47,45 @@ SERVO_DUTY_FRACTION = 0.45      # derate stall servo direct-drive (selaras arm.j
 SAFETY_FACTOR = 2.5             # TARGET faktor dinamis dokumen (lihat catatan J2)
 
 # --- Geometri DH terukur dari CAD (m) ------------------------------------
-# Tabel DH standar, baris i = transform frame i-1 -> i, diukur dari
-# Testing Assembly.step. Sumbu: J1 vertikal lewat (X=-4.5, Y=0); J2 sejajar Y
-# lewat (X=-70.4, Z=64.8); J3 sejajar Y lewat (X=-57.9, Z=352.6).
+# Tabel DH standar, baris i = transform frame i-1 -> i. Diukur ulang dari
+# assembly CAD FINAL (rev 2026-07-30, lengan sudah tercetak penuh) dengan
+# `tools/measure_cad_geometry.py`: sumbu sendi di-fit dari pusat lingkaran
+# bearing/pin di STEP, bukan dari bounding box.
+#
+# Sumbu hasil fit (frame global CAD, mm):
+#   J1 vertikal lewat (X=-4.50, Y=0)
+#   J2 sejajar +Y lewat (X=-70.35, Z=64.84)
+#   J3 sejajar +Y lewat (X=-54.74, Z=352.42)
+#   J4 arah (0.98707, 0, 0.16027) lewat (X=-118.42, Y=-11.80, Z=342.08)
+#   J5 arah (0.01283,-0.99679,-0.07903) lewat (-321.25,-11.88, 309.14)
+#   J6 arah (0.20175,-0.07483, 0.97657) lewat (-339.66, -4.82, 220.01)
+#
 #   i | d (mm) | a (mm) | alpha | sumber
-#   1 |  64.8  |  65.9  |  +90  | d1 = tinggi J1->J2, a1 = offset lateral X J1->J2
-#   2 |   0    | 288.1  |   0   | a2 = upper arm J2->J3 (dX=+12.5, dZ=+287.8)
-#   3 |   0    |  50.0  |  -90  | a3 = offset perpendicular siku (TERUKUR CAD)
-#   4 | 220    |   0    |  +90  | d4 = forearm (USULAN, mudah diubah)
-#   5 |   0    |   0    |  -90  |
-#   6 |  90    |   0    |   0   | d6 = wrist-center -> TCP (USULAN, mudah diubah)
-D1_BASE = 0.0648             # J1 -> J2 arah vertikal (d1)
-A1_SHOULDER_OFFSET = 0.0659  # offset lateral X J1 -> J2 (a1)
-A2_UPPER_ARM = 0.2881        # J2 -> J3 (a2), panjang upper arm
-A3_ELBOW_OFFSET = 0.050      # offset perpendicular di siku (a3), TERUKUR CAD
-D4_FOREARM = 0.220           # panjang forearm (d4), USULAN, mudah diubah
-D6_WRIST_TCP = 0.090         # wrist-center -> TCP (d6), USULAN, mudah diubah
-LATERAL_Y_OFFSET = 0.060     # bidang drive lengan di Y ~ -60 mm dari sumbu J1
+#   1 |  64.84 |  65.85 |  +90  | d1 = tinggi J1->J2, a1 = offset lateral X J1->J2
+#   2 |   0    | 288.00 |   0   | a2 = upper arm J2->J3 (common normal, 2 sumbu //Y)
+#   3 | -11.80 |   0.00 |  -90  | a3 = 0: sumbu J3 & J4 BERPOTONGAN (dulu 50 mm);
+#     |        |        |       | d3 = geseran lateral Y bidang forearm vs base
+#   4 | 270.00 |   0    |  +90  | d4 = forearm, dari titik potong J3xJ4 ke wrist center
+#   5 |   0    |   0    |  -90  | J4/J5/J6 concurrent (lihat CATATAN PIEPER)
+#   6 |  90.55 |   0    |   0   | d6 = wrist center -> permukaan flange gripper
+#
+# CATATAN PIEPER (kriteria closed-form IK): jarak common normal terukur
+# J4-J5 = 0.000 mm, J5-J6 = 0.000 mm, J4-J6 = 0.150 mm. Ketiga sumbu praktis
+# berpotongan di satu titik (wrist center) -> Pieper terpenuhi di CAD.
+#
+# d6 = jarak ke PERMUKAAN FLANGE gripper (lingkaran Ø50 terukur), bukan ke
+# titik cengkeram. Badan gripper masih menjulur ~84 mm lagi di luar flange.
+D1_BASE = 0.06484            # J1 -> J2 arah vertikal (d1)
+A1_SHOULDER_OFFSET = 0.06585  # offset lateral X J1 -> J2 (a1)
+A2_UPPER_ARM = 0.28800       # J2 -> J3 (a2), panjang upper arm
+A3_ELBOW_OFFSET = 0.0        # a3 = 0: sumbu J3 dan J4 berpotongan di CAD FINAL
+D3_ELBOW_LATERAL = -0.0118   # d3, geseran lateral bidang forearm vs bidang base
+D4_FOREARM = 0.27000         # panjang forearm (d4), TERUKUR CAD
+D6_WRIST_TCP = 0.09055       # wrist-center -> flange gripper (d6), TERUKUR CAD
+# Dulu parameter tambal (0.060) karena d3 dipaksa 0 di tabel DH. Sekarang
+# geseran lateralnya dimodelkan langsung lewat D3_ELBOW_LATERAL, jadi nilai
+# ini cuma besarannya saja - jangan dipakai lagi untuk mengoreksi hasil DH.
+LATERAL_Y_OFFSET = abs(D3_ELBOW_LATERAL)
 
 # Alias kompatibilitas panjang link (dipakai kode lama / studio).
 UPPER_ARM_LEN = A2_UPPER_ARM
@@ -64,7 +94,9 @@ WRIST_LEN = D6_WRIST_TCP
 BASE_HEIGHT = D1_BASE
 
 # Jangkauan maksimum dari sumbu J2 saat lengan terentang penuh:
-#   a2 + sqrt(a3^2 + d4^2) + d6 = 0.604 m (target desain 0.60 m).
+#   a2 + sqrt(a3^2 + d4^2) + d6 = 0.6486 m.
+# NAIK dari 0.604 m: forearm CAD final 270 mm (dulu diasumsikan 220 mm) dan
+# offset siku a3 50 mm hilang. Target lama dokumen riset 0.60 m terlampaui ~8%.
 REACH_FROM_J2 = A2_UPPER_ARM + math.hypot(A3_ELBOW_OFFSET, D4_FOREARM) + D6_WRIST_TCP
 TOTAL_REACH = REACH_FROM_J2  # alias target jangkauan
 
@@ -85,15 +117,27 @@ class PointMass:
 # Model massa (dari dokumen riset §2, jarak diukur dari J2). Payload 0.2 kg,
 # J2 DIRECT (motor coaxial di pivot, tanpa belt); motor J3/J4 direlokasi
 # proksimal (mengurangi beban gravitasi di J2/J3).
+#
+# NILAI MASSA masih ESTIMASI dokumen riset - BELUM ditimbang. Lengan sekarang
+# sudah tercetak penuh, jadi langkah berikutnya: timbang tiap part dan ganti
+# angka kg di bawah (dokumen riset §9 sudah mewanti-wanti tau_J2 berskala
+# langsung dengan ini).
+#
+# POSISI di-rebase ke panjang link CAD final: fraksi sepanjang link dijaga
+# persis sama dengan dokumen riset (yang memakai upper 280 / forearm 230 /
+# wrist-EE 90 mm), lalu dikalikan panjang terukur. Ditulis sebagai rumus, bukan
+# angka mati, supaya ikut bergerak sendiri kalau geometri CAD berubah lagi.
+_ELBOW_FROM_J2 = A2_UPPER_ARM                  # sumbu J3
+_WRIST_FROM_J2 = _ELBOW_FROM_J2 + D4_FOREARM   # wrist center (J4=J5=J6)
 MASSES: list[PointMass] = [
-    PointMass("upper_arm_link", 0.18, 0.14),
-    PointMass("j3_motor_relokasi", 0.28, 0.08),
-    PointMass("elbow_cycloidal", 0.15, 0.28),
-    PointMass("j4_motor_relokasi", 0.226, 0.31),
-    PointMass("j4_cycloidal", 0.10, 0.29),
-    PointMass("forearm_link", 0.12, 0.395),
-    PointMass("wrist_cluster_ee", 0.25, 0.53),
-    PointMass("payload", 0.20, 0.60),
+    PointMass("upper_arm_link", 0.18, 0.5000 * A2_UPPER_ARM),        # 140/280
+    PointMass("j3_motor_relokasi", 0.28, 0.2857 * A2_UPPER_ARM),     #  80/280
+    PointMass("elbow_cycloidal", 0.15, _ELBOW_FROM_J2),              # di sumbu J3
+    PointMass("j4_motor_relokasi", 0.226, _ELBOW_FROM_J2 + 0.1304 * D4_FOREARM),   #  30/230
+    PointMass("j4_cycloidal", 0.10, _ELBOW_FROM_J2 + 0.0435 * D4_FOREARM),         #  10/230
+    PointMass("forearm_link", 0.12, _ELBOW_FROM_J2 + 0.5000 * D4_FOREARM),         # 115/230
+    PointMass("wrist_cluster_ee", 0.25, _ELBOW_FROM_J2 + 1.0870 * D4_FOREARM),     # 250/230
+    PointMass("payload", 0.20, _WRIST_FROM_J2 + D6_WRIST_TCP),       # di flange
 ]
 
 # Sendi pitch memikul momen gravitasi; nilainya = posisi sumbu dari J2 (m).
@@ -240,7 +284,8 @@ class JointSpec:
 #   J1: belt HTD3M 2 stage, 12T->60T (5:1) lalu 20T->60T (3:1) = 1:15
 #   J2: 30 pin dowel 5 mm di pin circle -> cycloidal 1:30
 #   J3: belt HTD3M 20T->60T (3:1) lalu cycloidal 1:10 = 1:30
-#   J4: cycloidal 1:15 -- TENTATIVE, masih bisa berubah. Kalau rasio ini
+#   J4: 15 pin roller di pin circle R35 -> cycloidal 1:15. Terkonfirmasi dari
+#       CAD final 2026-07-30 (status TENTATIVE dicabut). Kalau rasio ini
 #       berubah, ikut perbarui studio/src/config/arm.js, firmware RATIO[],
 #       Tabel 3.4 Bab III, dan jalankan ulang benchmarks/torque_map.py.
 #   J5/J6: servo MG996R direct drive, tanpa reduksi.

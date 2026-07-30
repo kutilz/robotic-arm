@@ -36,6 +36,7 @@ from arm import kinematics as K
 A1, D1 = C.A1_SHOULDER_OFFSET, C.D1_BASE
 A2 = C.A2_UPPER_ARM
 A3, D4 = C.A3_ELBOW_OFFSET, C.D4_FOREARM
+D3 = C.D3_ELBOW_LATERAL          # geseran lateral bidang lengan vs sumbu base
 D6 = C.D6_WRIST_TCP
 LF = math.hypot(A3, D4)          # panjang efektif J3 -> wrist-center
 BETA = math.atan2(D4, A3)        # sudut tetap offset siku
@@ -66,16 +67,34 @@ def _wrist_angles(R3_6, flip: bool):
 
 
 def ik_candidates(T):
-    """Semua solusi IK kandidat (list of 6-vektor deg) untuk pose T (4x4)."""
+    """Semua solusi IK kandidat (list of 6-vektor deg) untuk pose T (4x4).
+
+    Bidang lengan tidak memotong sumbu base: ada geseran lateral tetap d3
+    (sumbu J4/J5/J6 berada 11.8 mm di samping bidang yang memuat sumbu J1).
+    Akibatnya th1 BUKAN atan2(y, x) begitu saja - proyeksi wrist-center ke
+    bidang XY selalu menyinggung lingkaran berjari-jari |d3| di sekitar sumbu
+    base. Uraikan (pc_x, pc_y) = Rz(th1) . (u, -d3) dengan u = jangkauan radial
+    di dalam bidang lengan:
+
+        u   = +-sqrt(pc_x^2 + pc_y^2 - d3^2)      (bahu kiri / kanan)
+        th1 = atan2(pc_y, pc_x) - atan2(-d3, u)
+
+    Bentuknya tetap tertutup - d3 tidak merusak kriteria Pieper, karena Pieper
+    hanya menuntut ketiga sumbu pergelangan berpotongan di satu titik. Kalau
+    d3 = 0 rumus di atas jatuh kembali ke atan2(y, x) dan atan2(y, x) + pi.
+    """
     p = T[:3, 3]
     R = T[:3, :3]
     pc = p - D6 * R[:, 2]                 # wrist-center
     sols = []
-    base = math.atan2(pc[1], pc[0])
-    for th1 in (base, base + math.pi):
-        c1, s1 = math.cos(th1), math.sin(th1)
-        r_planar = pc[0] * c1 + pc[1] * s1  # proyeksi radial ke arah th1 (bertanda)
-        u = r_planar - A1
+    azim = math.atan2(pc[1], pc[0])
+    disc = pc[0] * pc[0] + pc[1] * pc[1] - D3 * D3
+    if disc < 0.0:                        # di dalam silinder buta radius |d3|
+        return sols
+    root = math.sqrt(disc)
+    for u_planar in (root, -root):
+        th1 = azim - math.atan2(-D3, u_planar)
+        u = u_planar - A1
         w = pc[2] - D1
         D2 = u * u + w * w
         cos_qe = (D2 - A2 * A2 - LF * LF) / (2 * A2 * LF)

@@ -43,12 +43,13 @@ def analyze(samples: int, seed: int, cell_mm: float):
     radial = np.hypot(p_tcp[:, 0], p_tcp[:, 1])         # jarak dari sumbu base (J1)
     reach_j2 = np.linalg.norm(p_tcp - p_j2, axis=1)      # jarak dari titik J2 (invarian J1)
 
-    # Dead zone silinder: DH ini sengaja d3=0 (forearm di bidang Y=0) sehingga
-    # model ideal nyaris tanpa dead zone. Arm fisik punya offset lateral bidang
-    # drive ~60 mm (config.LATERAL_Y_OFFSET) yang menggeser TCP secara tangensial
-    # -> radius dead zone fisik = sqrt(r_ideal_min^2 + offset^2).
+    # Dead zone silinder. Dulu tabel DH memaksa d3=0 lalu dead zone-nya
+    # ditambal manual dengan offset lateral ~60 mm. Sejak geometri di-rebase ke
+    # CAD final, geseran lateral itu sudah masuk tabel DH sebagai d3 = -11.8 mm,
+    # jadi radial.min() SUDAH mengandung efeknya - menambah hypot lagi berarti
+    # menghitung ganda.
     dz_ideal = float(radial.min())
-    dz_phys = float(np.hypot(dz_ideal, C.LATERAL_Y_OFFSET))
+    dz_phys = dz_ideal
 
     metrics = {
         "samples": samples,
@@ -74,9 +75,9 @@ def report(metrics: dict):
     print(f"Reach maks dari sumbu J2   : {metrics['reach_max_from_j2_m']*1000:.1f} mm "
           f"(target {metrics['target_reach_m']*1000:.0f} mm)")
     print(f"Reach maks dari sumbu base : {metrics['reach_max_from_base_m']*1000:.1f} mm")
-    print(f"Dead zone silinder (fisik) : {metrics['deadzone_physical_m']*1000:.1f} mm radius "
-          f"(offset lateral {metrics['lateral_offset_m']*1000:.0f} mm; model ideal "
-          f"{metrics['deadzone_ideal_m']*1000:.1f} mm)")
+    print(f"Dead zone silinder         : {metrics['deadzone_physical_m']*1000:.1f} mm radius "
+          f"(offset lateral d3 {metrics['lateral_offset_m']*1000:.1f} mm sudah "
+          f"masuk tabel DH)")
     print(f"Rentang tinggi TCP (z)     : {metrics['z_min_m']*1000:.1f} .. "
           f"{metrics['z_max_m']*1000:.1f} mm")
     ok = "YA" if metrics["reach_600mm_tercapai"] else "TIDAK"

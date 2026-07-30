@@ -50,7 +50,13 @@ studio/node_modules/
 *.log
 
 # Model CAD besar (regenerable via export Onshape) — jangan commit 21 MB
+# Sumber kebenaran desain 3D tetap FeatureScript di onshape/*.fs
 *.glb
 *.gltf
 *.step
 *.stp
+*.x_t
+*.x_b
+onshape/*.zip
+onshape/*.obj
+onshape/*.mtl
