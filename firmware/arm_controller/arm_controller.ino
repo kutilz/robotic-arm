@@ -4,26 +4,35 @@
  * Skripsi: Rancang Bangun Robotic Arm 6-DOF 3D Printed dengan Mekanisme
  *          Position Feedback dan Interface Digital Twin Berbasis Web
  *
- * Position feedback HIBRIDA (selaras src/arm/config.py):
- *   - J1,J2,J3,J5 : AS5600 (absolut magnetik 12-bit) via mux I2C TCA9548A,
- *                   dipasang di OUTPUT sendi (ikut mengukur backlash gearbox).
- *   - J4,J6       : encoder optik incremental = disk cetak 24 lubang + 2x
- *                   TLP1025 (quadrature -> 96 count/rev), di POROS MOTOR.
- *                   INCREMENTAL -> butuh HOMING saat boot (lihat catatan).
+ * ============================ LEGACY / TIDAK DIPAKAI ======================
+ * Sketch ini adalah arsitektur LAMA (Arduino Mega, 6 stepper, 6 AS5600) dan
+ * SUDAH TIDAK selaras dengan hardware final. Firmware aktif proyek ini ada di
+ * `firmware/arm_controller_esp32/`. Konstanta di bawah (RATIO[], ENC_CHANNEL[],
+ * jumlah aktuator) sengaja DIBIARKAN apa adanya sebagai arsip; JANGAN dipakai
+ * sebagai rujukan angka. Sumber kebenaran = `src/arm/config.py`.
  *
- * Aktuator: 6 stepper (NEMA17/23) via driver step/dir (DM542T/TMC2209), 24 V+.
+ * Hardware final: J1/J3/J4 stepper 17HS2401, J2 17HS6401S, J5/J6 servo MG996R;
+ * AS5600 hanya 4 unit (J1-J4, mux channel 0-3), J5/J6 pakai pot internal servo
+ * lewat ADC1 ESP32.
+ * ==========================================================================
+ *
+ * Position feedback (arsitektur lama sketch ini):
+ *   - J1-J6 : AS5600 (absolut magnetik 12-bit) via mux I2C TCA9548A,
+ *             dipasang di OUTPUT sendi (ikut mengukur backlash gearbox).
+ *             Absolut -> tidak perlu homing saat boot.
+ *
+ * Aktuator (lama): 6 stepper via driver step/dir (DM542T/TMC2209), 24 V+.
  *
  * Protokol serial ke bridge Python (115200 baud):
  *   masuk : "GO,a1,a2,a3,a4,a5,a6\n"   (sudut target derajat)
  *   keluar: "FB,a1,a2,a3,a4,a5,a6\n"   (sudut aktual dari encoder)
  *
- * Dependensi (Library Manager): AccelStepper, Encoder (Paul Stoffregen), Wire
+ * Dependensi (Library Manager): AccelStepper, Wire
  * Board acuan: Arduino Mega 2560.
- * SCAFFOLD: kalibrasi pin, STEPS_PER_DEG, KP, dan offset homing untuk hardware nyata.
+ * SCAFFOLD: kalibrasi pin, STEPS_PER_DEG, KP untuk hardware nyata.
  */
 
 #include <AccelStepper.h>
-#include <Encoder.h>
 #include <Wire.h>
 
 #define NUM_JOINTS 6
@@ -35,18 +44,8 @@
 const uint8_t STEP_PIN[NUM_JOINTS] = {2, 4, 6, 8, 10, 12};
 const uint8_t DIR_PIN[NUM_JOINTS]  = {3, 5, 7, 9, 11, 13};
 
-// --- Tipe encoder per sendi ----------------------------------------------
-// 0 = AS5600 (absolut, I2C via mux) ; 1 = optik quadrature (TLP1025 x2)
-const uint8_t ENC_TYPE[NUM_JOINTS]    = {0, 0, 0, 1, 0, 1};  // J4 & J6 = optik
-// AS5600: channel mux TCA9548A. Optik: indeks pasangan opto (0/1).
-const uint8_t ENC_CHANNEL[NUM_JOINTS] = {0, 1, 2, 0, 3, 1};
-
-// --- Encoder optik incremental -------------------------------------------
-// Disk cetak 24 lubang + 2 sensor quadrature -> 4x = 96 count/rev.
-// Pin A/B pasangan opto. 18/19 = pin interrupt Mega (kinerja terbaik);
-// 22/23 pin biasa (cukup untuk laju rendah). Hindari 20/21 (dipakai I2C).
-#define OPTICAL_CPR (24.0 * 4.0)
-Encoder optEnc[2] = {Encoder(18, 19), Encoder(22, 23)};
+// --- Channel mux TCA9548A tiap AS5600 (semua sendi sama alamat I2C 0x36) --
+const uint8_t ENC_CHANNEL[NUM_JOINTS] = {0, 1, 2, 3, 4, 5};
 
 // Langkah motor per derajat OUTPUT = (200 * microstep * rasio) / 360
 const float RATIO[NUM_JOINTS] = {20, 55, 50, 15, 15, 15};
@@ -78,15 +77,9 @@ float readAS5600(uint8_t channel) {
   return (raw & 0x0FFF) * 360.0 / 4096.0;
 }
 
-// Baca sudut OUTPUT sendi (derajat). Optik: relatif terhadap titik homing,
-// disk di poros motor -> bagi rasio reduksi.
+// Baca sudut OUTPUT sendi (derajat).
 float readEncoder(int j) {
-  if (ENC_TYPE[j] == 0) {
-    return readAS5600(ENC_CHANNEL[j]);
-  }
-  uint8_t i = ENC_CHANNEL[j];                 // indeks pasangan opto (0/1)
-  long counts = optEnc[i].read();
-  return (counts * 360.0 / OPTICAL_CPR) / RATIO[j];
+  return readAS5600(ENC_CHANNEL[j]);
 }
 
 void setup() {
@@ -98,11 +91,6 @@ void setup() {
     steppers[i].setAcceleration(800);
     STEPS_PER_DEG[i] = (200.0 * MICROSTEP * RATIO[i]) / 360.0;
   }
-  // HOMING (wajib untuk sendi optik incremental): gerakkan tiap sendi optik
-  // ke limit switch / lubang indeks, lalu reset hitungannya. Skeleton:
-  //   optEnc[0].write(0); optEnc[1].write(0);
-  optEnc[0].write(0);
-  optEnc[1].write(0);
 }
 
 void parseCommand(const String &line) {
