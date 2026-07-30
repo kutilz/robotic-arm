@@ -94,6 +94,29 @@ html.eng #statusCard, html.eng #controlCard { right: 392px; }
   color: var(--muted); margin: 11px 0 5px;
 }
 
+/* ---------------- view cube (tombol orientasi di scene panel) ---------------- */
+.vcBtns { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; margin: 2px 0 8px; }
+.vcBtns .vcBtn {
+  background: var(--panel2); border: 1px solid var(--line2); color: var(--muted);
+  border-radius: var(--r-sm); padding: 7px 2px; cursor: pointer;
+  font-family: var(--mono); font-size: 10px; letter-spacing: 0.02em;
+}
+.vcBtns .vcBtn:hover { border-color: var(--accent); color: var(--accent); }
+.vcBtns .vcBtn:active { background: var(--accent); color: var(--accent-ink); }
+.vcBtns .vcBtn.iso { grid-column: span 3; color: var(--ink); border-color: var(--line2); }
+.vcBtns .vcBtn.iso:hover { border-color: var(--accent); color: var(--accent); }
+.seg.vcProj { margin-top: 2px; }
+.seg.vcProj button { padding: 6px 4px; font-size: 10px; }
+
+/* gizmo triad (pojok kiri-bawah, ikut orientasi kamera) */
+#viewGizmo {
+  position: absolute; left: 16px; bottom: 62px; z-index: 9;
+  width: 104px; height: 104px; border-radius: var(--r-md);
+  background: rgba(13, 18, 24, 0.55); border: 1px solid var(--line);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+}
+#viewGizmo canvas { display: block; }
+
 /* mode pill — hanya tampil di mode engineering */
 #modePill { display: none; margin: 10px 0 2px; }
 html.eng #modePill { display: flex; }
@@ -236,12 +259,12 @@ html.eng #modePill { display: flex; }
 .icobtn.on { color: var(--accent); border-color: var(--accent); }
 .stripSep { width: 1px; height: 20px; background: var(--line2); margin: 0 2px; }
 
-#legendCard { left: 14px; bottom: 64px; padding: 10px 13px; display: none; font-family: var(--mono); font-size: 10.5px; color: var(--muted); line-height: 1.7; }
+#legendCard { left: 14px; bottom: 176px; padding: 10px 13px; display: none; font-family: var(--mono); font-size: 10.5px; color: var(--muted); line-height: 1.7; }
 #legendCard.open { display: block; }
 #legendCard .sw { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 7px; vertical-align: middle; }
 
 #hint {
-  position: absolute; left: 16px; bottom: 62px; z-index: 5; pointer-events: none;
+  position: absolute; top: 18px; left: 50%; transform: translateX(-50%); z-index: 5; pointer-events: none;
   font-family: var(--mono); font-size: 10px; color: var(--dim);
   animation: hintFade 1s ease 8s forwards;
 }
@@ -346,6 +369,114 @@ input[type=text], .txt {
 .jcard .nums b { color: var(--ink); font-weight: 600; }
 
 .ic { display: block; }
+
+/* ---------------- tab CAL — panel komisioning gaya PLC ---------------- */
+.calHead { display: flex; align-items: center; gap: 8px; margin: 2px 0 8px; }
+.calHead .grow, .calCard .grow { flex: 1; }
+.calHead .segsm button.svc.on { background: var(--warn); color: #221a04; font-weight: 700; }
+
+/* pilot lamp industrial: abu (off) / hijau (ok) / amber (warn) / merah (err) */
+.plamp {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-family: var(--mono); font-size: 8.5px; letter-spacing: 0.08em; color: var(--dim);
+}
+.plamp .pd {
+  width: 9px; height: 9px; border-radius: 50%; background: #39434f;
+  border: 1px solid rgba(0, 0, 0, 0.5); box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+.plamp[data-st="ok"] .pd { background: var(--ok); box-shadow: 0 0 6px var(--ok); }
+.plamp[data-st="warn"] .pd { background: var(--warn); box-shadow: 0 0 6px var(--warn); }
+.plamp[data-st="err"] .pd { background: var(--over); box-shadow: 0 0 6px var(--over); animation: plampBlink 0.9s infinite; }
+@keyframes plampBlink { 50% { opacity: 0.45; } }
+
+/* channel card per axis (ala servo-drive commissioning) */
+.calCard {
+  background: var(--panel2); border: 1px solid var(--line); border-left: 3px solid var(--dim);
+  border-radius: 8px; padding: 7px 9px; margin: 7px 0;
+}
+.calCard .top { display: flex; align-items: center; gap: 8px; }
+.calCard .nm { font-family: var(--mono); font-size: 11px; font-weight: 700; color: var(--head); }
+.calCard .agc { font-family: var(--mono); font-size: 8.5px; color: var(--dim); }
+
+/* readout gaya LED 7-segment di bezel gelap */
+.ledRow { display: flex; gap: 5px; margin: 6px 0; }
+.led { flex: 1; min-width: 0; background: var(--bg2); border: 1px solid var(--line); border-radius: 5px; padding: 3px 7px; }
+.led .k { font-size: 7.5px; letter-spacing: 0.12em; color: var(--dim); font-family: var(--mono); text-transform: uppercase; }
+.led .v {
+  font-family: var(--mono); font-size: 12.5px; color: #7ee787; font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 6px rgba(126, 231, 135, 0.35); white-space: nowrap;
+}
+.led .v.na { color: var(--dim); text-shadow: none; }
+
+/* tombol panel (JOG/ZERO/APPLY/...) — momentary, mono, industrial */
+.calBtns { display: flex; gap: 5px; flex-wrap: wrap; margin: 2px 0; }
+.calBtns button {
+  flex: 1; min-width: 46px; background: var(--panel); border: 1px solid var(--line2); color: var(--ink);
+  border-radius: 5px; padding: 6px 4px; font-family: var(--mono); font-size: 9.5px;
+  letter-spacing: 0.05em; cursor: pointer; user-select: none;
+}
+.calBtns button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.calBtns button:active:not(:disabled) { background: var(--accent); color: var(--accent-ink); }
+.calBtns button:disabled { opacity: 0.35; cursor: not-allowed; }
+.calBtns button.danger:hover:not(:disabled) { border-color: var(--over); color: var(--over); }
+
+/* parameter grid gaya VFD */
+.calParams { display: grid; grid-template-columns: 92px 1fr; gap: 5px 8px; align-items: center; margin: 7px 0; }
+.calParams label { font-family: var(--mono); font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+.calParams input {
+  width: 100%; background: var(--panel2); border: 1px solid var(--line2); color: var(--ink);
+  border-radius: 5px; padding: 4px 7px; font-family: var(--mono); font-size: 10.5px;
+}
+.calParams .quad { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+.calParams select {
+  width: 100%; background: var(--panel2); border: 1px solid var(--line2); color: var(--ink);
+  border-radius: 5px; padding: 4px 7px; font-family: var(--mono); font-size: 10.5px;
+}
+
+/* readback driver TMC2209 — tabel padat gaya monitor drive.
+   Kolom terakhir (status) yang berwarna: hijau ok, amber peringatan,
+   merah kondisi yang membatalkan validitas angka arus di kiri. */
+.drvTable {
+  margin: 6px 0; border: 1px solid var(--line); border-radius: 6px;
+  overflow: hidden; background: var(--bg2);
+}
+.drvRow {
+  display: grid; grid-template-columns: 26px 1fr 1fr 30px 1.6fr;
+  gap: 4px; align-items: center; padding: 3px 8px;
+  border-top: 1px solid var(--line);
+  font-family: var(--mono); font-size: 10px; color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.drvRow:first-child { border-top: 0; }
+.drvRow.head {
+  background: var(--panel); color: var(--dim);
+  font-size: 7.5px; letter-spacing: 0.1em; text-transform: uppercase;
+}
+.drvRow > span:first-child { color: var(--muted); }
+.drvRow > span:last-child { text-align: right; color: var(--dim); }
+.drvRow[data-st="ok"]   > span:last-child { color: var(--ok); }
+.drvRow[data-st="warn"] > span:last-child { color: var(--warn); }
+.drvRow[data-st="err"]  > span:last-child { color: var(--over); }
+
+/* readout besar load cell */
+.loadBig {
+  display: flex; align-items: baseline; gap: 7px; flex: 1;
+  font-family: var(--mono); background: var(--bg2); border: 1px solid var(--line);
+  border-radius: 6px; padding: 5px 11px;
+}
+.loadBig b {
+  font-size: 19px; font-weight: 600; color: #7ee787; font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 8px rgba(126, 231, 135, 0.35);
+}
+.loadBig span { font-size: 9.5px; color: var(--dim); }
+
+/* caption pemisah blok */
+.calCap {
+  display: flex; align-items: center; gap: 7px; margin: 11px 0 5px;
+  font-size: 8.5px; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--dim); font-family: var(--mono);
+}
+.calCap::after { content: ""; flex: 1; height: 1px; background: var(--line); }
 
 /* ---------------- layar sempit ---------------- */
 @media (max-width: 1100px) {

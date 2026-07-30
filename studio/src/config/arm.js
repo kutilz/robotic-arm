@@ -1,16 +1,20 @@
 /* ============================================================================
-   DATA / MODEL — sinkron dengan docs/research/arsitektur_final_robotic_arm_6dof.md
-   (Pre-CAD, terkunci): payload 0.2 kg, reach 600 mm, J2 cycloidal DIRECT 17HS6401,
-   J3/J4 motor relokasi proximal + belt HTD3M, J5/J6 MG996R servo, AS5600 di output
-   tiap joint. Diekstrak dari studio/legacy/index.html tanpa mengubah nilai.
+   DATA / MODEL — geometri & rasio DIUKUR dari CAD (Testing Assembly.step);
+   payload 0.2 kg, reach ~604 mm dari J2.
+   Drivetrain FINAL: J1 belt HTD3M 2 stage 1:15 (17HS2401), J2 cycloidal DIRECT
+   1:30 (17HS6401S), J3 belt 3:1 + cycloidal 1:10 = 1:30 (17HS2401),
+   J4 cycloidal 1:15 TENTATIVE (17HS2401), J5/J6 MG996R servo direct.
+   Feedback: AS5600 di output J1..J4 (mux TCA9548A ch 0-3); J5/J6 pot internal
+   servo -> ADC1 ESP32, tanpa mux. Faktor sizing & massa dari
+   docs/research/arsitektur_final_robotic_arm_6dof.md. Sinkron src/arm/config.py.
    ========================================================================== */
 
-// Cycloidal geometry defaults — representative of the J2-class drive (pin-circle ~30 mm)
+// Cycloidal geometry — terukur dari drive J2 di STEP (30 pin Ø5, pin circle Ø76)
 export const CYC = {
-  N: 25,             // ring pin count -> reduction N:1, lobes = N-1
-  pinCircleR: 30,    // pin circle dia 60 / 2 (J2 upsized 28-30mm untuk angkat ceiling PLA+)
-  pinR: 1.6,         // Ø3 steel dowel roller / 2
-  ecc: 1.0,          // eccentricity
+  N: 30,             // ring pin count J2 -> reduction 1:30, lobes = N-1
+  pinCircleR: 38,    // pin circle dia 76 / 2 (terukur CAD J2)
+  pinR: 2.5,         // Ø5 steel dowel roller / 2 (terukur CAD)
+  ecc: 1.1,          // eccentricity (terukur CAD J2)
   diskT: 6,          // disk thickness
   flangeT: 5,        // flange thickness
   wallT: 2,          // wall thickness
@@ -29,33 +33,41 @@ export function recalcCyc() {
 }
 recalcCyc();
 
-// link segments (mm) — anthropomorphic 600mm split (LOCKED)
-export const LINK = { upper: 280, fore: 230, wrist: 14, j6gap: 14, ee: 62, baseH: 140 };
-// reach (J2->tip) = upper 280 + forearm 230 + wrist->EE (14+14+62 = 90) = 600
+// link segments (mm) — TERUKUR CAD: upper a2=288.1, forearm d4=220, wrist->EE d6=90
+export const LINK = { upper: 288, fore: 220, wrist: 14, j6gap: 14, ee: 62, baseH: 140 };
+// reach (J2->tip) = a2 288 + sqrt(a3 50^2 + d4 220^2) 226 + d6 90 = ~604 mm
 
-// parametric packaging offsets (mm) — research §5
-export const OFFS = { colH: 120, shoulder: 35, elbow: -50, fore: 0, w5: 0, w6: 0 };
-export const OFFS_RESEARCH = { colH: 120, shoulder: 35, elbow: -50, fore: 0, w5: 0, w6: 0 };
+// parametric packaging offsets (mm) — TERUKUR CAD: shoulder a1=65.9, elbow a3=50
+// (d1 base = 64.8 mm, base visual masih artistik menunggu impor mesh STEP)
+export const OFFS = { colH: 120, shoulder: 66, elbow: -50, fore: 0, w5: 0, w6: 0 };
+export const OFFS_RESEARCH = { colH: 120, shoulder: 66, elbow: -50, fore: 0, w5: 0, w6: 0 };
 export const OFFS_SEARAH = { colH: 120, shoulder: 35, elbow: 50, fore: 0, w5: 0, w6: 0 };
 export const OFFS_LAMA = { colH: 64, shoulder: 30, elbow: -26, fore: 0, w5: 0, w6: 0 };
 
-// actuator catalogue: holding/stall torque (N·m). steppers: running = 0.5*holding.
+// actuator catalogue FINAL: holding/stall torque (N·m). steppers: running =
+// 0.5*holding. Key HARUS sama persis dengan MOTORS di src/arm/config.py.
 export const MOTORS = {
-  '17HS4401': 0.45,        // NEMA17 40mm — J1, J3
-  '17HS6401': 0.60,        // NEMA17 60mm — J2
-  '17PM-K054': 0.27,       // Minebea 226g — J4
-  'MG996R (servo)': 1.08,  // stall @6V — J5/J6
+  '17HS2401': 0.45,   // NEMA17 40mm, 1.7 A — J1, J3, J4
+  '17HS6401S': 0.70,  // NEMA17 60mm, 2.0 A — J2
+  'MG996R': 1.08,     // stall @6V — J5/J6
 };
+
+// tipe umpan balik posisi (selaras ENC_* di src/arm/config.py)
+export const FB_AS5600 = 'as5600';       // magnetik absolut di output sendi
+export const FB_SERVO_POT = 'servo_pot'; // pot internal servo -> ADC1 ESP32
 
 // joint definitions. axis: Y up. pitch=X, roll=Y, yaw=Y.
 // drive: belt | cyc | cyc-belt | servo
+// ratio: reduksi total drivetrain FINAL (lihat header).
+// fb/encChan: tipe umpan balik + channel mux TCA9548A (null = tanpa mux).
+// target: torsi output yang dibutuhkan (N·m), selaras torque.py.
 export const JDEF = [
-  { id: 'J1', name: 'Base yaw',    kind: 'yaw',   drive: 'belt',     motor: '17HS4401',       ratio: 20, min: -180, max: 180, a: 0, target: 3 },
-  { id: 'J2', name: 'Shoulder',    kind: 'pitch', drive: 'cyc',      motor: '17HS6401',       ratio: 45, min: -95,  max: 95,  a: 0, target: 12 },
-  { id: 'J3', name: 'Elbow',       kind: 'pitch', drive: 'cyc-belt', motor: '17HS4401',       ratio: 25, min: -150, max: 150, a: 0, target: 3.8 },
-  { id: 'J4', name: 'Wrist roll',  kind: 'roll',  drive: 'cyc',      motor: '17PM-K054',      ratio: 15, min: -180, max: 180, a: 0, target: 1 },
-  { id: 'J5', name: 'Wrist pitch', kind: 'pitch', drive: 'servo',    motor: 'MG996R (servo)', ratio: 1,  min: -120, max: 120, a: 0, target: 0.65 },
-  { id: 'J6', name: 'End roll',    kind: 'roll',  drive: 'servo',    motor: 'MG996R (servo)', ratio: 1,  min: -180, max: 180, a: 0, target: 0.3 },
+  { id: 'J1', name: 'Base yaw',    kind: 'yaw',   drive: 'belt',     motor: '17HS2401',  ratio: 15, min: -180, max: 180, a: 0, target: 3,     fb: FB_AS5600,    encChan: 0 },
+  { id: 'J2', name: 'Shoulder',    kind: 'pitch', drive: 'cyc',      motor: '17HS6401S', ratio: 30, min: -95,  max: 95,  a: 0, target: 11.98, fb: FB_AS5600,    encChan: 1 },
+  { id: 'J3', name: 'Elbow',       kind: 'pitch', drive: 'cyc-belt', motor: '17HS2401',  ratio: 30, min: -150, max: 150, a: 0, target: 3.45,  fb: FB_AS5600,    encChan: 2 },
+  { id: 'J4', name: 'Wrist roll',  kind: 'roll',  drive: 'cyc',      motor: '17HS2401',  ratio: 15, min: -180, max: 180, a: 0, target: 1,     fb: FB_AS5600,    encChan: 3 },
+  { id: 'J5', name: 'Wrist pitch', kind: 'pitch', drive: 'servo',    motor: 'MG996R',    ratio: 1,  min: -120, max: 120, a: 0, target: 0.59,  fb: FB_SERVO_POT, encChan: null },
+  { id: 'J6', name: 'End roll',    kind: 'roll',  drive: 'servo',    motor: 'MG996R',    ratio: 1,  min: -180, max: 180, a: 0, target: 0.3,   fb: FB_SERVO_POT, encChan: null },
 ];
 
 // lumped masses (kg) + attach joint (0-based) + jarak sepanjang link pivot (mm).
@@ -90,8 +102,15 @@ export const POSE_PRESETS = [
 export const STATE = {
   mode: 'arm', explode: 0, payload: 0.20, eta: 0.75, sf: 2.5, plaCeil: plaCeiling(),
   estop: false, engineering: false,
-  show: { axes: true, masses: false, dims: false, skeleton: true, xray: false, wristAxes: true, sweep: false },
+  // true = ada edit pose lokal yang belum dikirim ke hardware; bridge menahan
+  // feedback selama flag ini aktif (di-set applyPose, dilepas sendGoto/connect).
+  poseDirty: false,
+  show: { axes: true, masses: false, dims: false, skeleton: true, xray: false, wristAxes: true, sweep: false, cad: false },
   joints: JDEF.map(j => ({ ...j })),
 };
 
-export function isServo(j) { return /MG996R|servo/i.test(j.motor); }
+// Deteksi servo lewat tipe drive, bukan cocok-cocokan nama motor: nama motor
+// pernah berubah (`MG996R (servo)` -> `MG996R`) dan regex-nya ikut patah.
+export function isServo(j) { return j.drive === 'servo'; }
+/** true kalau sendi punya AS5600 di output (J1..J4). */
+export function hasAS5600(j) { return j.fb === FB_AS5600; }

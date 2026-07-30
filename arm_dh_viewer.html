@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Viewer Linkage 6-DOF</title>
+<style>
+  :root{
+    --bg:#f6f5f1; --fg:#2c2c2a; --muted:#6b6a64; --panel:#ffffff; --line:#d8d6cd;
+    --teal:#1d9e75; --purple:#7f77dd; --coral:#d85a30; --gray:#888780;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --bg:#1c1c1a; --fg:#eceae2; --muted:#9d9c94; --panel:#262623; --line:#3a3a36; }
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+  .wrap{display:flex;flex-direction:column;height:100%}
+  .stage{position:relative;flex:1;min-height:280px}
+  canvas{display:block;width:100%;height:100%;cursor:grab;touch-action:none}
+  canvas:active{cursor:grabbing}
+  .hint{position:absolute;left:12px;top:10px;font-size:12px;color:var(--muted);
+    background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px 10px;line-height:1.5}
+  .legend{position:absolute;right:12px;top:10px;font-size:12px;background:var(--panel);
+    border:1px solid var(--line);border-radius:8px;padding:8px 10px;line-height:1.7}
+  .sw{display:inline-block;width:22px;height:4px;border-radius:2px;vertical-align:middle;margin-right:6px}
+  .views{position:absolute;left:12px;bottom:12px;display:flex;flex-wrap:wrap;gap:5px;max-width:230px}
+  .views button{font:inherit;font-size:12px;padding:5px 9px;border-radius:7px;border:1px solid var(--line);
+    background:var(--panel);color:var(--fg);cursor:pointer}
+  .views button:hover{border-color:var(--muted)}
+  .views button.iso{border-color:var(--purple);color:var(--purple)}
+  .panel{border-top:1px solid var(--line);background:var(--panel);padding:12px 14px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px 20px}
+  .row{display:flex;align-items:center;gap:10px;font-size:13px}
+  .row label{width:150px;color:var(--muted)}
+  .row .val{width:56px;text-align:right;font-variant-numeric:tabular-nums}
+  input[type=range]{flex:1;accent-color:var(--purple)}
+  .bar{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+  button{font:inherit;font-size:13px;padding:6px 12px;border-radius:8px;border:1px solid var(--line);
+    background:transparent;color:var(--fg);cursor:pointer}
+  button:hover{border-color:var(--muted)}
+  .chk{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="stage">
+    <canvas id="c"></canvas>
+    <div class="hint">Seret untuk memutar &middot; scroll untuk zoom</div>
+    <div class="legend">
+      <div><span class="sw" style="background:var(--purple)"></span>a &mdash; offset antar sumbu</div>
+      <div><span class="sw" style="background:var(--teal)"></span>d &mdash; panjang sepanjang sumbu</div>
+    </div>
+    <div class="views" id="views">
+      <button class="iso" data-az="45" data-el="35">Iso</button>
+      <button data-az="0"   data-el="0">Depan</button>
+      <button data-az="180" data-el="0">Belakang</button>
+      <button data-az="90"  data-el="0">Kanan</button>
+      <button data-az="-90" data-el="0">Kiri</button>
+      <button data-az="0"   data-el="90">Atas</button>
+      <button data-az="0"   data-el="-90">Bawah</button>
+    </div>
+  </div>
+  <div class="panel">
+    <div class="grid" id="sliders"></div>
+    <div class="bar">
+      <button id="resetPose">Reset pose</button>
+      <button id="resetView">Reset tampilan</button>
+      <button id="spin">Putar otomatis</button>
+      <label class="chk"><input type="checkbox" id="lbl" checked> tampilkan ukuran</label>
+    </div>
+  </div>
+</div>
+<script>
+const DEG = Math.PI/180;
+// Tabel DH terukur: [a(mm), alpha(deg), d(mm), nama]
+const DH = [
+  {a:66,  alpha: 90, d:65,  th:0},   // J1 base yaw
+  {a:288, alpha: 0,  d:0,   th:0},   // J2 shoulder
+  {a:50,  alpha:-90, d:0,   th:0},   // J3 elbow
+  {a:0,   alpha: 90, d:220, th:0},   // J4 forearm roll
+  {a:0,   alpha:-90, d:0,   th:0},   // J5 wrist pitch
+  {a:0,   alpha: 0,  d:90,  th:0},   // J6 end roll + tool
+];
+const JOINTS = [
+  {name:'J1', lo:-180, hi:180, val:25},
+  {name:'J2', lo:-120, hi:120, val:-45},
+  {name:'J3', lo:-150, hi:150, val:75},
+  {name:'J4', lo:-180, hi:180, val:0},
+  {name:'J5', lo:-100, hi:100, val:40},
+  {name:'J6', lo:-180, hi:180, val:0},
+];
+const DEFAULT = JOINTS.map(j=>j.val);
+
+// ---- math 4x4 (array of 4 rows of 4) ----
+function ident(){return [[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]];}
+function mul(A,B){
+  const M=ident();
+  for(let i=0;i<4;i++)for(let j=0;j<4;j++){
+    let s=0; for(let k=0;k<4;k++) s+=A[i][k]*B[k][j]; M[i][j]=s;
+  }
+  return M;
+}
+function dhMat(a,alphaDeg,d,thetaDeg){
+  const ct=Math.cos(thetaDeg*DEG), st=Math.sin(thetaDeg*DEG);
+  const ca=Math.cos(alphaDeg*DEG), sa=Math.sin(alphaDeg*DEG);
+  return [
+    [ct, -st*ca,  st*sa, a*ct],
+    [st,  ct*ca, -ct*sa, a*st],
+    [0,   sa,     ca,     d   ],
+    [0,   0,      0,      1   ],
+  ];
+}
+function origin(M){return [M[0][3],M[1][3],M[2][3]];}
+function zaxis(M){return [M[0][2],M[1][2],M[2][2]];}
+function add(p,v,s){return [p[0]+v[0]*s,p[1]+v[1]*s,p[2]+v[2]*s];}
+
+// build segments + joints from current angles
+function solve(angles){
+  let M=ident();
+  const Os=[origin(M)]; const Zs=[zaxis(M)];
+  const frames=[M];
+  for(let i=0;i<6;i++){
+    M=mul(M, dhMat(DH[i].a, DH[i].alpha, DH[i].d, DH[i].th+angles[i]));
+    frames.push(M); Os.push(origin(M)); Zs.push(zaxis(M));
+  }
+  // staircase segments
+  const segs=[];
+  for(let i=0;i<6;i++){
+    const Oprev=Os[i], zprev=Zs[i];
+    const P=add(Oprev, zprev, DH[i].d);     // slide d along previous z
+    const Onext=Os[i+1];
+    if(DH[i].d!==0) segs.push({a:Oprev,b:P,color:'teal',label:'d'+(i+1)+'='+DH[i].d});
+    if(DH[i].a!==0) segs.push({a:P,b:Onext,color:'purple',label:'a'+(i+1)+'='+DH[i].a});
+  }
+  const marks=[
+    {p:Os[0],name:'J1'},
+    {p:Os[1],name:'J2'},
+    {p:Os[2],name:'J3'},
+    {p:Os[3],name:'J4'},
+    {p:Os[4],name:'wrist  J4·J5·J6'},
+    {p:Os[6],name:'TCP',tcp:true},
+  ];
+  return {segs,marks};
+}
+
+// ---- view ----
+const cvs=document.getElementById('c'), ctx=cvs.getContext('2d');
+let az=35, el=18, zoom=1;
+const PIVOT=[0,0,180];
+let spinning=false;
+
+function colOf(name){
+  const s=getComputedStyle(document.documentElement);
+  return {teal:s.getPropertyValue('--teal'),purple:s.getPropertyValue('--purple'),
+    coral:s.getPropertyValue('--coral'),gray:s.getPropertyValue('--gray'),
+    fg:s.getPropertyValue('--fg'),muted:s.getPropertyValue('--muted'),line:s.getPropertyValue('--line')};
+}
+function project(p,W,H){
+  const x=p[0]-PIVOT[0], y=p[1]-PIVOT[1], z=p[2]-PIVOT[2];
+  const ca=Math.cos(az*DEG), sa=Math.sin(az*DEG);
+  let x1=x*ca - y*sa, y1=x*sa + y*ca, z1=z;
+  const ce=Math.cos(el*DEG), se=Math.sin(el*DEG);
+  let y2=y1*ce - z1*se, z2=y1*se + z1*ce;
+  const s=Math.min(W,H)/1000*zoom;
+  return {x:W/2 + x1*s, y:H*0.60 - z2*s, depth:y2};
+}
+function line(P,Q,col,w){
+  ctx.strokeStyle=col; ctx.lineWidth=w; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(P.x,P.y); ctx.lineTo(Q.x,Q.y); ctx.stroke();
+}
+function render(){
+  const dpr=window.devicePixelRatio||1;
+  const W=cvs.clientWidth, H=cvs.clientHeight;
+  cvs.width=W*dpr; cvs.height=H*dpr; ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.clearRect(0,0,W,H);
+  const C=colOf();
+  const angles=JOINTS.map(j=>j.val);
+  const {segs,marks}=solve(angles);
+
+  // ground grid on z=0
+  ctx.lineWidth=0.5; ctx.strokeStyle=C.line;
+  for(let g=-300; g<=300; g+=100){
+    const A=project([g,-300,0],W,H), B=project([g,300,0],W,H);
+    const D=project([-300,g,0],W,H), E=project([300,g,0],W,H);
+    line(A,B,C.line,0.5); line(D,E,C.line,0.5);
+  }
+  // J1 rotation axis (dashed vertical)
+  ctx.save(); ctx.setLineDash([4,5]);
+  line(project([0,0,0],W,H), project([0,0,150],W,H), C.muted,1);
+  ctx.restore();
+
+  // segments sorted far->near
+  segs.forEach(s=>{ s._d=(project(s.a,W,H).depth+project(s.b,W,H).depth)/2; });
+  segs.sort((p,q)=>q._d-p._d);
+  segs.forEach(s=>{
+    const P=project(s.a,W,H), Q=project(s.b,W,H);
+    line(P,Q, s.color==='teal'?C.teal:C.purple, 7);
+  });
+
+  // joints + labels
+  const showLbl=document.getElementById('lbl').checked;
+  if(showLbl){
+    ctx.font='12px -apple-system,Segoe UI,Roboto,sans-serif';
+    ctx.fillStyle=C.muted; ctx.textAlign='left';
+    segs.forEach(s=>{
+      const P=project(s.a,W,H), Q=project(s.b,W,H);
+      ctx.fillText(s.label,(P.x+Q.x)/2+8,(P.y+Q.y)/2-4);
+    });
+  }
+  marks.forEach(m=>{
+    const P=project(m.p,W,H);
+    ctx.beginPath(); ctx.arc(P.x,P.y, m.tcp?6:5, 0, 7);
+    ctx.fillStyle=m.tcp?C.coral:C.gray; ctx.fill();
+    ctx.font='13px -apple-system,Segoe UI,Roboto,sans-serif';
+    ctx.fillStyle=C.fg; ctx.textAlign='left';
+    ctx.fillText(m.name, P.x+9, P.y+4);
+  });
+
+  drawTriad(W,H,C);
+}
+
+// gizmo sumbu X/Y/Z di pojok kiri bawah kanvas
+function rotDir(v){
+  const ca=Math.cos(az*DEG), sa=Math.sin(az*DEG);
+  let x1=v[0]*ca - v[1]*sa, y1=v[0]*sa + v[1]*ca, z1=v[2];
+  const ce=Math.cos(el*DEG), se=Math.sin(el*DEG);
+  let z2=y1*se + z1*ce;
+  return {x:x1, y:-z2};       // layar: x kanan, y ke bawah
+}
+function drawTriad(W,H,C){
+  const ox=42, oy=H-70, L=26;
+  const ax=[['X',[1,0,0],C.coral],['Y',[0,1,0],C.teal],['Z',[0,0,1],C.purple]];
+  ctx.font='12px -apple-system,Segoe UI,Roboto,sans-serif'; ctx.textAlign='center';
+  ax.forEach(([nm,v,col])=>{
+    const d=rotDir(v);
+    ctx.strokeStyle=col; ctx.lineWidth=2; ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(ox,oy); ctx.lineTo(ox+d.x*L, oy+d.y*L); ctx.stroke();
+    ctx.fillStyle=col; ctx.fillText(nm, ox+d.x*(L+9), oy+d.y*(L+9)+4);
+  });
+}
+
+// ---- interaction ----
+let drag=false, lx=0, ly=0;
+cvs.addEventListener('pointerdown',e=>{drag=true;lx=e.clientX;ly=e.clientY;cvs.setPointerCapture(e.pointerId);});
+cvs.addEventListener('pointermove',e=>{
+  if(!drag)return;
+  az+=(e.clientX-lx)*0.5; el+=(e.clientY-ly)*0.5;
+  el=Math.max(-89,Math.min(89,el)); lx=e.clientX; ly=e.clientY; render();
+});
+cvs.addEventListener('pointerup',e=>{drag=false;});
+cvs.addEventListener('wheel',e=>{e.preventDefault();zoom*=e.deltaY<0?1.1:0.9;zoom=Math.max(0.3,Math.min(4,zoom));render();},{passive:false});
+
+// sliders
+const box=document.getElementById('sliders');
+JOINTS.forEach((j,i)=>{
+  const row=document.createElement('div'); row.className='row';
+  row.innerHTML=`<label>${j.name} <span style="color:var(--muted)">(${['base yaw','shoulder','elbow','forearm roll','wrist pitch','end roll'][i]})</span></label>
+    <input type="range" min="${j.lo}" max="${j.hi}" value="${j.val}" step="1">
+    <span class="val">${j.val}&deg;</span>`;
+  const inp=row.querySelector('input'), val=row.querySelector('.val');
+  inp.addEventListener('input',()=>{j.val=+inp.value; val.textContent=inp.value+'°'; render();});
+  box.appendChild(row);
+});
+document.getElementById('resetPose').onclick=()=>{
+  JOINTS.forEach((j,i)=>{j.val=DEFAULT[i];});
+  box.querySelectorAll('.row').forEach((r,i)=>{r.querySelector('input').value=DEFAULT[i];r.querySelector('.val').textContent=DEFAULT[i]+'°';});
+  render();
+};
+document.getElementById('resetView').onclick=()=>{az=35;el=18;zoom=1;render();};
+document.getElementById('views').addEventListener('click',e=>{
+  const b=e.target.closest('button'); if(!b)return;
+  az=+b.dataset.az; el=+b.dataset.el; render();
+});
+document.getElementById('lbl').onchange=render;
+document.getElementById('spin').onclick=()=>{spinning=!spinning;};
+function loop(){ if(spinning){az+=0.4;render();} requestAnimationFrame(loop);}
+window.addEventListener('resize',render);
+render(); loop();
+</script>
+</body>
+</html>

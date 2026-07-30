@@ -23,7 +23,13 @@ function setRotations() {
   }
   scene.updateMatrixWorld(true);
 }
-export function applyPose() { setRotations(); computeTorques(); emit(); }
+/** fromFeedback=true dipakai bridge: pose dari hardware, bukan edit lokal.
+    Edit lokal men-set STATE.poseDirty -> bridge menahan feedback (lihat
+    net/bridge.js) sampai target dikirim via Send goto. */
+export function applyPose(fromFeedback = false) {
+  if (!fromFeedback) STATE.poseDirty = true;
+  setRotations(); computeTorques(); emit();
+}
 
 export function applyExplode() {
   const ex = STATE.explode;
@@ -76,10 +82,14 @@ export function computeWristDrift() {
 }
 
 /* ---------------- torsi tersedia ---------------- */
+// Efisiensi ikut tipe drive (selaras src/arm/config.py transmission_efficiency):
+// cyc = eta cycloidal; cyc-belt = eta x 0.9 (1 stage belt); belt = 0.9^2 (J1).
 export function haveTorque(j) {
   if (isServo(j)) return MOTORS[j.motor] * 0.45;
-  const ratio = j.drive === 'servo' ? 15 : j.ratio;
-  return MOTORS[j.motor] * 0.5 * ratio * STATE.eta;
+  let eff = STATE.eta;
+  if (j.drive === 'belt') eff = Math.pow(0.9, 2);
+  else if (j.drive === 'cyc-belt') eff = STATE.eta * 0.9;
+  return MOTORS[j.motor] * 0.5 * j.ratio * eff;
 }
 
 /* ---------------- TCP readout ---------------- */

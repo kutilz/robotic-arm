@@ -12,13 +12,15 @@ import { setTcpDrag, setTcpMode, getTcpEnabled } from './tcpDrag.js';
 import { DEMOS } from './demos.js';
 import { setShow, getShow } from './pathPreview.js';
 import { addKey, clearKeys } from './timeline.js';
-import { connect, disconnect, isActive, sendGoto, getUrl } from '../net/bridge.js';
+import { connect, disconnect, isActive, sendGoto, getUrl, onHwStatus } from '../net/bridge.js';
 import { setPayload } from './dataPanel.js';
+import { buildCalPanel } from './calPanel.js';
 
 const TABS = [
   ['joint', 'JOINT'],
-  ['cart', 'CARTESIAN'],
+  ['cart', 'CART'],
   ['motion', 'MOTION'],
+  ['cal', 'CAL'],
   ['setup', 'SETUP'],
 ];
 
@@ -100,6 +102,9 @@ export function buildControlCard(card) {
   kfRow.append(bAdd, bClr);
   bodies.motion.appendChild(kfRow);
 
+  /* ---- CAL (komisioning gaya PLC; logika penuh di calPanel.js) ---- */
+  buildCalPanel(bodies.cal);
+
   /* ---- SETUP (bridge) ---- */
   const urlInp = document.createElement('input'); urlInp.type = 'text'; urlInp.id = 'wsUrl'; urlInp.value = getUrl();
   bodies.setup.appendChild(urlInp);
@@ -120,8 +125,26 @@ export function buildControlCard(card) {
   bodies.setup.appendChild(btns);
   const hint = document.createElement('div'); hint.className = 'mini'; hint.style.marginTop = '10px';
   hint.innerHTML = 'Jalankan <code>python -m arm.bridge --simulate</code> lalu Connect, atau langsung ke ESP32 '
-    + '<code>ws://armbot.local:81</code>. Feedback encoder menggerakkan model; Send goto mengirim target sendi sekarang.';
+    + '<code>ws://armbot.local:81</code>. Saat <b>live</b> feedback encoder menggerakkan model; begitu pose '
+    + 'diubah lokal badge jadi <b>target</b> (feedback ditahan) sampai Send goto mengirim target sendi sekarang.';
   bodies.setup.appendChild(hint);
+
+  // status hardware: fault encoder (persisten) + ack command terakhir
+  const stFault = document.createElement('div'); stFault.className = 'mini'; stFault.id = 'bridgeFault';
+  stFault.style.marginTop = '8px'; stFault.style.color = 'var(--over)';
+  const stAck = document.createElement('div'); stAck.className = 'mini'; stAck.id = 'bridgeAck';
+  stAck.style.marginTop = '4px';
+  bodies.setup.append(stFault, stAck);
+  onHwStatus(ev => {
+    if (ev.type === 'fault') {
+      const bad = ev.fault.map((f, i) => (f ? 'J' + (i + 1) : null)).filter(Boolean);
+      stFault.textContent = bad.length
+        ? '⚠ encoder fault: ' + bad.join(', ') + ' (fallback open-loop)' : '';
+    } else if (ev.type === 'ack') {
+      stAck.textContent = 'ack ' + ev.cmd + ': ' + ev.msg;
+      stAck.style.color = ev.ok ? '' : 'var(--over)';
+    }
+  });
 
   /* ---- footer ---- */
   const foot = document.createElement('div'); foot.className = 'ccFoot';

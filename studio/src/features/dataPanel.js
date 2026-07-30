@@ -97,7 +97,7 @@ export function buildDataPanel(scroll) {
     const c = document.createElement('div'); c.className = 'jcard';
     const driveTxt = { belt: 'belt 2-stage', cyc: 'cyc direct', 'cyc-belt': 'belt + cyc', servo: 'servo direct' }[j.drive] || j.drive;
     const ratioRow = j.drive === 'servo'
-      ? `<div class="row" style="margin:4px 0"><label style="width:auto;font-size:10px;color:var(--dim)">MG996R direct -> AS5600 output · stall ${MOTORS[j.motor].toFixed(2)} N·m</label></div>`
+      ? `<div class="row" style="margin:4px 0"><label style="width:auto;font-size:10px;color:var(--dim)">${j.motor} direct -> pot internal + ADC1 · stall ${MOTORS[j.motor].toFixed(2)} N·m</label></div>`
       : `<div class="row" style="margin:4px 0"><label style="width:64px;font-size:10.5px">ratio 1:</label><input type=range min=8 max=80 value=${j.ratio} step=1 style="flex:1"><span class="val rr"></span></div>`;
     c.innerHTML = `<div class="top"><div class="nm">${j.id} <span>${j.name} · ${driveTxt}</span></div><div class="st"></div></div>
       <div class="row" style="margin:6px 0 2px"><select class="mtr"></select></div>

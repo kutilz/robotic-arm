@@ -13,8 +13,8 @@ const LEGEND = [
   ['var(--axis-z)', 'axis Z'],
   ['#e08a3c', 'printed PLA+ (housing / disk / hub / link)'],
   ['#b9c2cb', 'steel hardware (pin · dowel · bearing · shaft)'],
-  ['#2f6db0', 'MG996R servo (wrist J5 / J6)'],
-  ['#1f7a4d', 'AS5600 feedback (output tiap joint)'],
+  ['#2f6db0', 'MG996R servo (wrist J5 / J6, feedback pot internal)'],
+  ['#1f7a4d', 'AS5600 feedback (output J1..J4)'],
   ['#1c2228', 'HTD3M belt (J1 base · J3 elbow)'],
 ];
 

@@ -4,11 +4,13 @@
    toggle engineering.
    ========================================================================== */
 import { STATE } from '../config/arm.js';
-import { cam, applyCam, setOrtho, isOrtho } from '../core/viewport.js';
+import { isOrtho } from '../core/viewport.js';
 import { applyExplode } from '../model/kinematics.js';
 import { setMode, refreshVisToggles, rebuildSweep } from './inspector.js';
+import { setCadVisible } from '../model/cadModel.js';
 import { slider, toggle } from '../ui/panel.js';
 import { icon } from '../ui/icons.js';
+import { buildViewButtons, setView, setProjection, registerProjIndicator } from './viewCube.js';
 
 export function buildScenePanel(panel) {
   panel.innerHTML = `
@@ -16,7 +18,7 @@ export function buildScenePanel(panel) {
       <span class="logo">◎</span>
       <div class="titles">
         <div class="t">Cycloidal Arm Studio</div>
-        <div class="s">6-DOF · AS5600 feedback · digital twin</div>
+        <div class="s">6-DOF · AS5600 J1-J4 + pot servo J5/J6 · digital twin</div>
       </div>
       <span class="icobtn chev">${icon('chevron')}</span>
     </div>
@@ -28,10 +30,14 @@ export function buildScenePanel(panel) {
       </div>
       <div class="cap">view</div>
       <div class="spToggles"></div>
+      <div class="cap">orientasi kamera</div>
+      <div class="vcHost"></div>
     </div>`;
 
   panel.querySelector('.spHead').onclick = () => panel.classList.toggle('open');
   panel.querySelectorAll('#modePill button').forEach(b => { b.onclick = () => setMode(b.dataset.mode); });
+
+  buildViewButtons(panel.querySelector('.vcHost'));
 
   const body = panel.querySelector('.spToggles');
   const vt = (label, key) => toggle(body, label, () => STATE.show[key], v => { STATE.show[key] = v; refreshVisToggles(); });
@@ -42,16 +48,13 @@ export function buildScenePanel(panel) {
   vt('X-ray solids', 'xray');
   vt('Wrist axes (concurrency)', 'wristAxes');
   toggle(body, 'Sweep ghost J3', () => STATE.show.sweep, v => { STATE.show.sweep = v; rebuildSweep(); refreshVisToggles(); });
+  toggle(body, 'CAD model (Testing Assembly)', () => STATE.show.cad, v => { STATE.show.cad = v; setCadVisible(v); });
   slider(body, 'Exploded view', 0, 1, 0, 0.01, '', v => { STATE.explode = v; applyExplode(); });
 }
 
-const CAM_PRESETS = {
-  iso: [-0.7, 1.15], front: [0, Math.PI / 2], side: [Math.PI / 2, Math.PI / 2], top: [0, 0.05],
-};
-export function setCamPreset(name) {
-  const p = CAM_PRESETS[name]; if (!p) return;
-  cam.az = p[0]; cam.pol = p[1]; applyCam();
-}
+// alias nama lama (shortcut keyboard i/f/s/t di main.js) -> view cube baru.
+const PRESET_ALIAS = { iso: 'iso', front: 'front', side: 'right', top: 'top' };
+export function setCamPreset(name) { setView(PRESET_ALIAS[name] || name); }
 
 /** icon strip kiri-bawah. onEng(next) dipanggil saat wrench diklik. */
 export function buildIconStrip(strip, onEng) {
@@ -66,9 +69,8 @@ export function buildIconStrip(strip, onEng) {
   mk('S', 'Kamera samping (S)', () => setCamPreset('side'));
   mk('T', 'Kamera atas (T)', () => setCamPreset('top'));
   sep();
-  const bOrtho = mk(icon('grid'), 'Orthographic (ala drawing CAD)', () => {
-    setOrtho(!isOrtho()); bOrtho.classList.toggle('on', isOrtho());
-  });
+  const bOrtho = mk(icon('grid'), 'Orthographic (ala drawing CAD)', () => setProjection(!isOrtho()));
+  registerProjIndicator(bOrtho, true);
   const bLegend = mk(icon('info'), 'Legend warna material', () => {
     const el = document.getElementById('legendCard');
     el.classList.toggle('open'); bLegend.classList.toggle('on', el.classList.contains('open'));

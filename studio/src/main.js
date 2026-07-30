@@ -14,10 +14,11 @@ import { initLegend, initStatusCard, updateHud } from './ui/hud.js';
 import { refreshJogEnabled, goHome } from './features/jog.js';
 import { buildControlCard, toggleGizmo, syncGizmoUI } from './features/controlCard.js';
 import { buildScenePanel, buildIconStrip, setCamPreset } from './features/scenePanel.js';
+import { buildGizmo } from './features/viewCube.js';
 import { initPathPreview } from './features/pathPreview.js';
 import { buildTimeline, stopPlayback, togglePlay } from './features/timeline.js';
 import { initTcpDrag } from './features/tcpDrag.js';
-import { sendEstop } from './net/bridge.js';
+import { sendEstop, sendResume, onHwStatus } from './net/bridge.js';
 import { DEMOS } from './features/demos.js';
 import { icon } from './ui/icons.js';
 
@@ -32,6 +33,7 @@ initTcpDrag();
 
 // panel-panel floating
 buildScenePanel(document.getElementById('scenePanel'));
+buildGizmo(stage);   // triad orientasi kamera (pojok kiri-bawah)
 initStatusCard();
 initLegend();
 buildControlCard(document.getElementById('controlCard'));
@@ -54,17 +56,25 @@ const engClose = document.getElementById('engClose');
 engClose.innerHTML = icon('close');
 engClose.onclick = () => setEngineering(false);
 
-// E-STOP
+// E-STOP. fromHw=true saat status datang DARI hardware (field estop di
+// feedback, mis. klien lain menekan e-stop) -> sinkron UI tanpa kirim balik.
 const estopBtn = document.getElementById('estop');
-function setEstop(on) {
+function setEstop(on, fromHw = false) {
   STATE.estop = on;
   estopBtn.classList.toggle('tripped', on);
   estopBtn.textContent = on ? 'RESET' : 'E-STOP';
-  if (on) { stopPlayback(); sendEstop(); }
+  if (on) stopPlayback();
+  if (!fromHw) {
+    if (on) sendEstop();
+    else sendResume();   // RESET melepas e-stop di hardware secara eksplisit
+  }
   refreshJogEnabled();
   syncGizmoUI();
 }
 estopBtn.onclick = () => setEstop(!STATE.estop);
+onHwStatus(ev => {
+  if (ev.type === 'estop' && ev.on !== STATE.estop) setEstop(ev.on, true);
+});
 
 // keyboard shortcuts (demo sidang): tidak aktif saat fokus di input.
 // E-STOP sengaja tanpa shortcut — terlalu riskan kepencet.

@@ -90,10 +90,10 @@ function addSensor(anchor, pivot, axisDir, sc = 0.9, out = 18) {
 function buildDims() {
   world.dimGroup = new THREE.Group(); world.arm.add(world.dimGroup);
   const wristEE = LINK.wrist + LINK.j6gap + LINK.ee;
-  const segs = [['upper arm 280', LINK.upper], ['forearm 230', LINK.fore], ['wrist->EE 90', wristEE]];
+  const segs = [[`upper arm ${LINK.upper}`, LINK.upper], [`forearm ${LINK.fore}`, LINK.fore], [`wrist->EE ${wristEE}`, wristEE]];
   let y = LINK.baseH + 14 + OFFS.colH;
   for (const [txt, L] of segs) { const lab = makeLabel(txt, '#9fb6c8', 0.7); lab.position.set(120, y + L / 2, 0); world.dimGroup.add(lab); y += L; }
-  const reach = makeLabel('Sigma reach 600 mm', '#7fe0f0', 0.78);
+  const reach = makeLabel('Sigma reach ~604 mm', '#7fe0f0', 0.78);
   reach.position.set(-160, LINK.baseH + 14 + OFFS.colH + 300, 0); world.dimGroup.add(reach);
 }
 
@@ -122,7 +122,7 @@ export function buildArm() {
   skelSeg(j1, v3(0, colH, 0), v3(oSh, colH, 0), SKEL.off, `shoulder ${fmtOff(oSh)}`);
   skelDot(j1, v3(0, 0, 0)); skelDot(j1, v3(oSh, colH, 0));
 
-  // J2 shoulder pitch (cycloidal direct, 17HS6401)
+  // J2 shoulder pitch (cycloidal direct, 17HS6401S)
   const j2anchor = new THREE.Group(); j2anchor.position.set(oSh, colH, 0); j1.add(j2anchor);
   placeDrive(j2anchor, 'x', 0.85, true);
   const j2 = new THREE.Group(); j2.position.set(oSh, colH, 0); j1.add(j2);
@@ -172,26 +172,25 @@ export function buildArm() {
   const wristY = LINK.fore;
   const wristStub = beam(24, 20, LINK.wrist, M.link); wristStub.position.y = wristY + LINK.wrist / 2; j4.add(wristStub);
 
-  // J5 wrist pitch (MG996R)
+  // J5 wrist pitch (MG996R servo direct; feedback = pot internal servo lewat
+  // ADC1 ESP32, jadi TIDAK ada AS5600 fisik di sini -> tanpa addSensor)
   const j5anchor = new THREE.Group(); j5anchor.position.set(0, wristY + LINK.wrist, OFFS.w5); j4.add(j5anchor);
   const j5servo = buildServo(0.85); orientDrive(j5servo, 'x'); j5servo.position.set(0, 0, -6); j5anchor.add(j5servo);
   const j5 = new THREE.Group(); j5.position.set(0, wristY + LINK.wrist, OFFS.w5); j4.add(j5);
   world.jointRefs.push({ def: STATE.joints[4], pivot: j5, axis: new THREE.Vector3(1, 0, 0) });
   addAxis(j5anchor, new THREE.Vector3(1, 0, 0), 'J5·pitch', SceneColors.axisX, 40);
   const hub5 = attachHub(j5, 'x', 0.5);
-  addSensor(j5anchor, j5, 'x', 0.8, 20);
   world.anchorRefs.push({ g: j5anchor, axis: 'x', type: 'servo' });
   if (Math.abs(OFFS.w5) > 0.5) skelSeg(j4, v3(0, wristY + LINK.wrist, 0), v3(0, wristY + LINK.wrist, OFFS.w5), SKEL.off, `w5 ${fmtOff(OFFS.w5)} !`);
   world.regionObjs[4].push(fore, wristStub, j5anchor, hub5);
 
-  // J6 end roll (MG996R)
+  // J6 end roll (MG996R servo direct; feedback pot internal, tanpa AS5600)
   const j6anchor = new THREE.Group(); j6anchor.position.set(OFFS.w6, LINK.j6gap, 0); j5.add(j6anchor);
   const j6servo = buildServo(0.8); orientDrive(j6servo, 'y'); j6servo.position.set(0, 0, 0); j6anchor.add(j6servo);
   const j6 = new THREE.Group(); j6.position.set(OFFS.w6, LINK.j6gap, 0); j5.add(j6);
   world.jointRefs.push({ def: STATE.joints[5], pivot: j6, axis: new THREE.Vector3(0, 1, 0) });
   addAxis(j6anchor, new THREE.Vector3(0, 1, 0), 'J6·roll', SceneColors.axisRY, 34);
   const hub6 = attachHub(j6, 'y', 0.45);
-  addSensor(j6anchor, j6, 'y', 0.8, 18);
   world.anchorRefs.push({ g: j6anchor, axis: 'y', type: 'servo' });
   if (Math.abs(OFFS.w6) > 0.5) skelSeg(j5, v3(0, LINK.j6gap, 0), v3(OFFS.w6, LINK.j6gap, 0), SKEL.off, `w6 ${fmtOff(OFFS.w6)} !`);
 

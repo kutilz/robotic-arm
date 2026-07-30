@@ -97,6 +97,7 @@ sebagai referensi. Aplikasi aktif adalah versi modular di `src/`.
 `kinematics.js` memakai **Damped Least Squares** (DLS) dengan Jacobian numerik yang
 beroperasi langsung pada scene graph Three.js sebagai FK. Dipakai jog Cartesian,
 drag TCP, dan demo lingkaran. `solveIK(targetPos, targetQuat, opts)`:
+
 - `useOrient` — sertakan error orientasi (6-DOF) atau posisi saja (3-DOF).
 - `partial` — pertahankan hasil best-effort tanpa revert (untuk drag/trace lingkaran).
 
@@ -113,9 +114,17 @@ Dua cara, keduanya bicara protokol WebSocket yang sama:
 `python -m arm.bridge --simulate` (atau `--port COM5`), lalu sambungkan ke
 `ws://localhost:8765`.
 
-Sudut sendi dari encoder (pesan `feedback`) menggerakkan model 3D; perintah
-`goto` dari studio dikirim ke lengan.
+**Target vs actual.** Saat tersambung, feedback encoder menggerakkan model 3D
+(badge `live`). Begitu pose diubah lokal (jog/slider/preset/IK/timeline), model
+menampilkan TARGET dan feedback ditahan (badge `target`) supaya susunan pose
+tidak ditindas feedback 50 Hz; tombol **Send goto** mengirim target lalu model
+kembali mengikuti hardware. E-STOP di-assert ulang otomatis tiap koneksi
+terbuka; RESET mengirim `resume` eksplisit.
 
-Protokol pesan WebSocket:
-- Masuk (dari bridge): `{"type":"feedback","angles":[a1..a6]}`
-- Keluar (ke bridge): `{"cmd":"goto","angles":[a1..a6]}` dan `{"cmd":"estop"}`
+Protokol pesan WebSocket (lengkap di `firmware/README.md`):
+
+- Masuk (dari bridge): `{"type":"feedback","angles":[a1..a6],"estop":b,"fault":[f1..f4]}`
+  (field `estop`/`fault` opsional, dikirim firmware ESP32; `estop` sinkron ke
+  tombol E-STOP, `fault` encoder + `ack` command tampil di tab SETUP)
+- Keluar (ke bridge): `{"cmd":"goto","angles":[a1..a6]}`, `{"cmd":"estop"}`,
+  `{"cmd":"resume"}`, dan command kalibrasi `cal_*` (ESP32)
