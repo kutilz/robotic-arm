@@ -1,0 +1,8 @@
+metrik,nilai,satuan,target,lulus
+latensi_rata2,49.50,ms,<100,1
+latensi_p95,52.00,ms,<100,1
+latensi_maks,52.00,ms,-,
+update_rate,50.00,Hz,>30,1
+sync_error_rata2,0.470,derajat,<=2,
+sync_error_maks,0.600,derajat,<=2,
+n_sampel,10,buah,-,
