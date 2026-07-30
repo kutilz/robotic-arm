@@ -15,6 +15,11 @@ env/
 # Data hasil benchmark (mentah/besar) — simpan sampel kecil saja
 benchmarks/data/*.png
 benchmarks/data/*_run*.csv
+# Output simulasi (regenerable): workspace/torsi/IK/error
+benchmarks/data/workspace_sim.csv
+benchmarks/data/torque_map.csv
+benchmarks/data/ik_verify.csv
+benchmarks/data/error_model.csv
 
 # Skripsi: file kerja Word/temp (outline .md tetap di-track)
 thesis/*.docx
@@ -33,3 +38,19 @@ desktop.ini
 # Arduino build
 firmware/**/build/
 *.hex
+
+# Kredensial WiFi (repo public!) — template ada di wifi_secrets.h.example
+firmware/arm_controller_esp32/wifi_secrets.h
+.gstack/
+
+# Node / Vite (studio digital twin)
+node_modules/
+studio/dist/
+studio/node_modules/
+*.log
+
+# Model CAD besar (regenerable via export Onshape) — jangan commit 21 MB
+*.glb
+*.gltf
+*.step
+*.stp
