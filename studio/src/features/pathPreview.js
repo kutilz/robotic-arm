@@ -1,5 +1,5 @@
 /* ============================================================================
-   Path preview + reachability — mengadopsi preview jalur & cek jangkauan Waldo.
+   Path preview + reachability: mengadopsi preview jalur & cek jangkauan Waldo.
    - Path: polyline posisi TCP sepanjang trajektori timeline.
    - Reachability: point cloud EE dari sampling ruang sendi (J1-J3, wrist 0).
    ========================================================================== */

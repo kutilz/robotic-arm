@@ -216,7 +216,7 @@ export const nutHole = defineFeature(function(context is Context, id is Id, defi
             const yDir = cross(zDir, xDir);
 
             // Deteksi arah: probe 8 arah melingkar x 2 kedalaman (dekat permukaan dan
-            // dasar pocket). Sisi dengan skor material terbanyak yang dipilih —
+            // dasar pocket). Sisi dengan skor material terbanyak yang dipilih,
             // menghindari salah arah kalau kedua sisi sama-sama ada material.
             const eps = min(0.2 * millimeter, pocketDepth / 2);
             const depths = [eps, max(eps, pocketDepth - eps)];

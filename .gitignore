@@ -12,7 +12,7 @@ env/
 .mypy_cache/
 .ruff_cache/
 
-# Data hasil benchmark (mentah/besar) — simpan sampel kecil saja
+# Data hasil benchmark (mentah/besar), simpan sampel kecil saja
 benchmarks/data/*.png
 benchmarks/data/*_run*.csv
 # Output simulasi (regenerable): workspace/torsi/IK/error
@@ -39,7 +39,7 @@ desktop.ini
 firmware/**/build/
 *.hex
 
-# Kredensial WiFi (repo public!) — template ada di wifi_secrets.h.example
+# Kredensial WiFi (repo public!), template ada di wifi_secrets.h.example
 firmware/arm_controller_esp32/wifi_secrets.h
 .gstack/
 
@@ -49,7 +49,7 @@ studio/dist/
 studio/node_modules/
 *.log
 
-# Model CAD besar (regenerable via export Onshape) — jangan commit 21 MB
+# Model CAD besar (regenerable via export Onshape), jangan commit 21 MB
 # Sumber kebenaran desain 3D tetap FeatureScript di onshape/*.fs
 *.glb
 *.gltf

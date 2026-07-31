@@ -1,5 +1,5 @@
 /* ============================================================================
-   Cycloidal Arm Studio — bootstrap.
+   Cycloidal Arm Studio: bootstrap.
    Layout ala Waldo Commander: scene full-viewport + panel floating.
    Model digital twin + jog/IK, timeline, demo, bridge WS, engineering drawer.
    ========================================================================== */
@@ -77,7 +77,7 @@ onHwStatus(ev => {
 });
 
 // keyboard shortcuts (demo sidang): tidak aktif saat fokus di input.
-// E-STOP sengaja tanpa shortcut — terlalu riskan kepencet.
+// E-STOP sengaja tanpa shortcut, terlalu riskan kepencet.
 const demoFns = Object.values(DEMOS);
 window.addEventListener('keydown', (e) => {
   if (e.ctrlKey || e.metaKey || e.altKey) return;

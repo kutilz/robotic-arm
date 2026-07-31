@@ -1,5 +1,5 @@
 /* ============================================================================
-   Cycloidal Arm Studio — theme (dark-only).
+   Cycloidal Arm Studio: theme (dark-only).
    Layout ala Waldo Commander: 3D scene full-viewport + panel floating glass.
    Warna scene (Three.js) ada di core/theme.js karena WebGL tidak membaca
    CSS variable. Class/id yang dipakai langsung JS: .badge/.dot/.lbl,
@@ -117,7 +117,7 @@ html.eng #statusCard, html.eng #controlCard { right: 392px; }
 }
 #viewGizmo canvas { display: block; }
 
-/* mode pill — hanya tampil di mode engineering */
+/* mode pill: hanya tampil di mode engineering */
 #modePill { display: none; margin: 10px 0 2px; }
 html.eng #modePill { display: flex; }
 
@@ -370,7 +370,7 @@ input[type=text], .txt {
 
 .ic { display: block; }
 
-/* ---------------- tab CAL — panel komisioning gaya PLC ---------------- */
+/* ---------------- tab CAL: panel komisioning gaya PLC ---------------- */
 .calHead { display: flex; align-items: center; gap: 8px; margin: 2px 0 8px; }
 .calHead .grow, .calCard .grow { flex: 1; }
 .calHead .segsm button.svc.on { background: var(--warn); color: #221a04; font-weight: 700; }
@@ -408,7 +408,7 @@ input[type=text], .txt {
 }
 .led .v.na { color: var(--dim); text-shadow: none; }
 
-/* tombol panel (JOG/ZERO/APPLY/...) — momentary, mono, industrial */
+/* tombol panel (JOG/ZERO/APPLY/...), momentary, mono, industrial */
 .calBtns { display: flex; gap: 5px; flex-wrap: wrap; margin: 2px 0; }
 .calBtns button {
   flex: 1; min-width: 46px; background: var(--panel); border: 1px solid var(--line2); color: var(--ink);
@@ -433,7 +433,7 @@ input[type=text], .txt {
   border-radius: 5px; padding: 4px 7px; font-family: var(--mono); font-size: 10.5px;
 }
 
-/* readback driver TMC2209 — tabel padat gaya monitor drive.
+/* readback driver TMC2209: tabel padat gaya monitor drive.
    Kolom terakhir (status) yang berwarna: hijau ok, amber peringatan,
    merah kondisi yang membatalkan validitas angka arus di kiri. */
 .drvTable {

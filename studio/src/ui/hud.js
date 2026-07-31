@@ -46,7 +46,7 @@ export function updateHud() {
   vals.RX.textContent = t.rx.toFixed(1); vals.RY.textContent = t.ry.toFixed(1); vals.RZ.textContent = t.rz.toFixed(1);
 
   const total = MASSES.reduce((s, m) => s + (m.label === 'payload' ? STATE.payload : m.m), 0);
-  let worst = '—', wm = 0;
+  let worst = '-', wm = 0;
   STATE.joints.forEach((j, i) => { const h = haveTorque(j); const r = h > 0 ? (lastTorques[i] * STATE.sf) / h : 0; if (r > wm) { wm = r; worst = j.id; } });
   const wd = world.wristDrift;
   const dCol = wd > 2 ? cssVar('--over') : wd > 0.5 ? cssVar('--warn') : cssVar('--ok');

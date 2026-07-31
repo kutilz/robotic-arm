@@ -383,7 +383,7 @@ function patternAroundAxis(context is Context, patId is Id, seed is Query, axisL
 }
 
 // ─── Crown Builder ────────────────────────────────────────────────────────────
-// Crown cage satu sisi — port geometri model FreeCAD crown_v2
+// Crown cage satu sisi: port geometri model FreeCAD crown_v2
 // (freecad-bearing-python/gatau apa (1).py + cage-crown.py). Strategi CUT:
 // ring annulus penuh, lalu notch prism per pocket + sphere pocket dipotong.
 //
@@ -394,7 +394,7 @@ function patternAroundAxis(context is Context, patId is Id, seed is Query, axisL
 //   c - halfWidth  dasar ring solid
 //
 // Layout tangensial per sisi pocket (x = jarak arc dari pusat pocket, diukur
-// di permukaan LUAR ring — konvensi FreeCAD CrownSurfaceLength):
+// di permukaan LUAR ring, konvensi FreeCAD CrownSurfaceLength):
 //   0 .. pocketR              pocket (sphere carve, pocketR = ballR + margin)
 //   .. pocketR + slotOffset   bibir flank (dibatasi diagonal)
 //   .. + slotW                FLEX SLOT vertikal, turun sampai level c
@@ -427,7 +427,7 @@ function buildCrown(context is Context, id is Id,
 {
     var mm = millimeter;
 
-    // Crown ring inner/outer radius — centered on pitch circle
+    // Crown ring inner/outer radius: centered on pitch circle
     var crInnerR = pitchR - crownWall;
     var crOuterR = pitchR + crownWall;
 

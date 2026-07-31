@@ -76,6 +76,6 @@ export function buildIconStrip(strip, onEng) {
     el.classList.toggle('open'); bLegend.classList.toggle('on', el.classList.contains('open'));
   });
   sep();
-  const bEng = mk(icon('wrench'), 'Engineering mode (E) — sizing, torsi, offsets, geometri', () => onEng());
+  const bEng = mk(icon('wrench'), 'Engineering mode (E): sizing, torsi, offsets, geometri', () => onEng());
   return { engBtn: bEng, legendBtn: bLegend };
 }

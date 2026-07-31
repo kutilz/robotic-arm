@@ -135,7 +135,7 @@ const THREEr = window.THREE;
    Synced with docs/research/arsitektur_final_robotic_arm_6dof.md (Pre-CAD, terkunci):
    payload 0.2 kg · reach 600 mm · J2 cycloidal DIRECT 17HS6401 · J3/J4 motor relokasi
    proximal + belt HTD3M · J5/J6 MG996R servo · AS5600 di output tiap joint.            */
-// Cycloidal geometry defaults — representative of the J2-class drive (pin-circle ~30 mm)
+// Cycloidal geometry defaults: representative of the J2-class drive (pin-circle ~30 mm)
 const CYC = {
   N:25,            // ring pin count  -> reduction N:1, lobes = N-1
   pinCircleR:30,   // pin circle dia 60 / 2  (J2 upsized 28-30mm to lift PLA+ ceiling)
@@ -155,18 +155,18 @@ CYC.outerR = CYC.pinCircleR + CYC.pinR + CYC.wallT;      // ~33.6
 CYC.ringH  = CYC.dualDisk ? (2*CYC.diskT + CYC.diskGap) : CYC.diskT; // 13
 CYC.housingH = CYC.flangeT + CYC.ringH;                  // 18
 
-// link segments (mm) — anthropomorphic 600mm split from final research (LOCKED)
+// link segments (mm): anthropomorphic 600mm split from final research (LOCKED)
 const LINK = { upper:280, fore:230, wrist:14, j6gap:14, ee:62, baseH:140 };
 // reach (J2→tip) = upper 280 + forearm 230 + wrist→EE (14+14+62 = 90) = 600
 
-// parametric packaging offsets (mm) — research §5: offset besar hanya di J1–J3, wrist concurrent.
+// parametric packaging offsets (mm), research §5: offset besar hanya di J1–J3, wrist concurrent.
 // "lateral" = sepanjang sumbu pitch X (keluar bidang ayun lengan). Tanda +/- = pilihan sisi.
 const OFFS = {
   colH:120,      // kolom vertikal J1→J2 (research ~120)
   shoulder:35,   // lateral J1→J2 (research ~35)
   elbow:-50,     // lateral di elbow J3 (research ~50; default sisi berlawanan shoulder)
   fore:0,        // inset tambahan J3→J4 (research ~0–15)
-  w5:0, w6:0,    // off-axis wrist J5(z)/J6(x) — WAJIB 0; slider hanya demo pecahnya closed-form IK
+  w5:0, w6:0,    // off-axis wrist J5(z)/J6(x): WAJIB 0; slider hanya demo pecahnya closed-form IK
 };
 const OFFS_RESEARCH={colH:120,shoulder:35,elbow:-50,fore:0,w5:0,w6:0};
 const OFFS_SEARAH  ={colH:120,shoulder:35,elbow: 50,fore:0,w5:0,w6:0};
@@ -174,10 +174,10 @@ const OFFS_LAMA    ={colH:64, shoulder:30,elbow:-26,fore:0,w5:0,w6:0};
 
 // actuator catalogue: holding/stall torque (N·m). steppers: running = 0.5*holding.
 const MOTORS = {
-  "17HS4401":0.45,        // NEMA17 40mm  — J1, J3 (real spec, reusable)
-  "17HS6401":0.60,        // NEMA17 60mm  — J2 (realistic, not the suspicious 0.7 claim)
-  "17PM-K054":0.27,       // Minebea 226g — J4 (already owned, light)
-  "MG996R (servo)":1.08,  // stall @6V — J5/J6, sized as servo (not stepper)
+  "17HS4401":0.45,        // NEMA17 40mm, J1, J3 (real spec, reusable)
+  "17HS6401":0.60,        // NEMA17 60mm, J2 (realistic, not the suspicious 0.7 claim)
+  "17PM-K054":0.27,       // Minebea 226g, J4 (already owned, light)
+  "MG996R (servo)":1.08,  // stall @6V, J5/J6, sized as servo (not stepper)
 };
 
 // joint definitions. axis convention: Y up. pitch about local X. roll about local Y. yaw about Y.
@@ -385,7 +385,7 @@ function buildDrive(sc=1, withMotor=true){
   const bear=ringMesh(CYC.bearInner/2*sc,CYC.bearOuter/2*sc,CYC.bearW*sc,M.steel);
   bear.position.y=flangeT+ringH*0.5; layers.housing.add(bear);
 
-  // ---- cycloidal disk(s) — orange printed, offset by eccentricity ----
+  // ---- cycloidal disk(s): orange printed, offset by eccentricity ----
   const shp=diskShape(sc);
   const dgeo=new THREEr.ExtrudeGeometry(shp,{depth:CYC.diskT*sc,bevelEnabled:false,curveSegments:24});
   dgeo.rotateX(-Math.PI/2);                          // extrude along +Y
@@ -567,7 +567,7 @@ function buildArm(){
   skelSeg(j1,v3(0,colH,0),v3(oSh,colH,0),SKEL.off,`shoulder ${fmtOff(oSh)}`);
   skelDot(j1,v3(0,0,0)); skelDot(j1,v3(oSh,colH,0));
 
-  // ---------- J2 (shoulder pitch) — cycloidal DIRECT, single 17HS6401 ----------
+  // ---------- J2 (shoulder pitch): cycloidal DIRECT, single 17HS6401 ----------
   const j2anchor=new THREEr.Group(); j2anchor.position.set(oSh,colH,0); j1.add(j2anchor);
   placeDrive(j2anchor, "x", 0.85, true);                       // big drive, motor coaxial (direct)
   const j2=new THREEr.Group(); j2.position.set(oSh,colH,0); j1.add(j2);
@@ -587,7 +587,7 @@ function buildArm(){
   j3motor.position.set(0,72,-30); j2.add(j3motor);
   const j3belt=beltAxial(LINK.upper-72, 9, "x"); j3belt.position.set(0,72,-30); j2.add(j3belt);
 
-  // ---------- J3 (elbow pitch) — cycloidal driven by belt (no local motor) ----------
+  // ---------- J3 (elbow pitch): cycloidal driven by belt (no local motor) ----------
   const j3anchor=new THREEr.Group(); j3anchor.position.y=LINK.upper; j2.add(j3anchor);
   placeDrive(j3anchor,"x",0.7,false);                          // belt-driven: motor relocated
   const j3=new THREEr.Group(); j3.position.y=LINK.upper; j2.add(j3);
@@ -598,14 +598,14 @@ function buildArm(){
   anchorRefs.push({g:j3anchor,axis:"x",sc:0.7,type:"cyc",motor:false});
   regionObjs[2].push(j3motor,j3belt,j3anchor,hub3,upper);
 
-  // elbow bridge (ikut J3): lekukan kedua — lateral oEl (+ inset oFo) menuju sumbu roll forearm
+  // elbow bridge (ikut J3): lekukan kedua, lateral oEl (+ inset oFo) menuju sumbu roll forearm
   const elbowBridge=dogleg([v3(0,0,0),v3(oEl,0,0),v3(fx,0,0)],30,30,M.link); j3.add(elbowBridge);
   skelSeg(j3,v3(0,0,0),v3(oEl,0,0),SKEL.off,`elbow ${fmtOff(oEl)}`);
   if(Math.abs(oFo)>0.5) skelSeg(j3,v3(oEl,0,0),v3(fx,0,0),SKEL.off,`fore ${fmtOff(oFo)}`);
   skelDot(j3,v3(0,0,0)); skelDot(j3,v3(fx,0,0));
   regionObjs[2].push(elbowBridge);
 
-  // ---------- J4 (forearm roll) — cycloidal at the elbow; the whole forearm IS the output ----------
+  // ---------- J4 (forearm roll): cycloidal at the elbow; the whole forearm IS the output ----------
   const j4anchor=new THREEr.Group(); j4anchor.position.x=fx; j3.add(j4anchor);   // fixed stator at elbow
   placeDrive(j4anchor,"y",0.55,true);                           // 17PM-K054 + cycloidal, roll axis = forearm
   const j4=new THREEr.Group(); j4.position.x=fx; j3.add(j4);     // forearm rolls about its own axis
@@ -620,11 +620,11 @@ function buildArm(){
   skelSeg(j4,v3(0,0,0),v3(0,LINK.fore,0),SKEL.link,"forearm 230");
   regionObjs[3].push(elbowBridge,j4anchor,hub4,fore);
 
-  // ---------- wrist cluster: J5 + J6 MG996R servos (spherical wrist — WAJIB concurrent) ----------
+  // ---------- wrist cluster: J5 + J6 MG996R servos (spherical wrist, WAJIB concurrent) ----------
   const wristY=LINK.fore;                                        // wrist sits at the forearm tip
   const wristStub=beam(24,20,LINK.wrist,M.link); wristStub.position.y=wristY+LINK.wrist/2; j4.add(wristStub);
 
-  // ---------- J5 (wrist pitch) — MG996R servo. OFFS.w5 (arah Z) memecah concurrency: demo saja ----------
+  // ---------- J5 (wrist pitch): MG996R servo. OFFS.w5 (arah Z) memecah concurrency: demo saja ----------
   const j5anchor=new THREEr.Group(); j5anchor.position.set(0,wristY+LINK.wrist,OFFS.w5); j4.add(j5anchor);
   const j5servo=buildServo(0.85); orientDrive(j5servo,"x"); j5servo.position.set(0,0,-6); j5anchor.add(j5servo);
   const j5=new THREEr.Group(); j5.position.set(0,wristY+LINK.wrist,OFFS.w5); j4.add(j5);
@@ -636,7 +636,7 @@ function buildArm(){
   if(Math.abs(OFFS.w5)>0.5) skelSeg(j4,v3(0,wristY+LINK.wrist,0),v3(0,wristY+LINK.wrist,OFFS.w5),SKEL.off,`w5 ${fmtOff(OFFS.w5)} ⚠`);
   regionObjs[4].push(fore,wristStub,j5anchor,hub5);
 
-  // ---------- J6 (end roll) — MG996R servo. OFFS.w6 (arah X) idem ----------
+  // ---------- J6 (end roll): MG996R servo. OFFS.w6 (arah X) idem ----------
   const j6anchor=new THREEr.Group(); j6anchor.position.set(OFFS.w6,LINK.j6gap,0); j5.add(j6anchor);
   const j6servo=buildServo(0.8); orientDrive(j6servo,"y"); j6servo.position.set(0,0,0); j6anchor.add(j6servo);
   const j6=new THREEr.Group(); j6.position.set(OFFS.w6,LINK.j6gap,0); j5.add(j6);
@@ -652,7 +652,7 @@ function buildArm(){
   skelSeg(j5,v3(0,0,0),v3(OFFS.w6,LINK.j6gap,0),SKEL.link,null);
   skelDot(j5,v3(0,0,0));
 
-  // extended wrist axes — concurrency guard (J4 merah · J5 hijau · J6 kuning)
+  // extended wrist axes: concurrency guard (J4 merah · J5 hijau · J6 kuning)
   wristAxisLine(j4,v3(0,wristY-70,0),v3(0,wristY+LINK.wrist+95,0),0xf06c5e);
   wristAxisLine(j5,v3(-90,0,0),v3(90,0,0),0x4ade80);
   wristAxisLine(j6,v3(0,-75,0),v3(0,85,0),0xf5b942);
@@ -942,7 +942,7 @@ offPreset("Searah 35/+50",OFFS_SEARAH);
 offPreset("Lama 30/-26",OFFS_LAMA);
 const offNote=document.createElement('div'); offNote.className='mini';
 offNote.innerHTML="Aturan emas research §5: offset besar hanya di J1–J3; wrist w5/w6 <b>wajib 0</b> "+
-  "(slider ⚠ cuma demo pecahnya closed-form IK — lihat readout <b>wrist drift</b> di HUD kiri-atas). "+
+  "(slider ⚠ cuma demo pecahnya closed-form IK, lihat readout <b>wrist drift</b> di HUD kiri-atas). "+
   "Tanda +/- = pilihan sisi. Offset lateral tidak mengubah torsi pitch: massa cuma geser sepanjang sumbu pitch.";
 offBody.appendChild(offNote);
 
@@ -1030,12 +1030,12 @@ let focusI=-1, savedMats=null, envGroup=null;
 function offsetInfo(i){
   const O=OFFS;
   return [
-    ["J1 base yaw — belt HTD3M 2-stage di base","keluar: kolom vertikal "+O.colH.toFixed(0)+" mm ke J2"],
-    ["J2 shoulder — lekukan #1","kolom "+O.colH.toFixed(0)+" mm ↑, lateral "+fmtOff(O.shoulder)+" mm (sumbu pitch X)","clearance badan cycloidal + motor 60mm coaxial"],
-    ["J3 elbow — lekukan #2","lateral elbow "+fmtOff(O.elbow)+" mm dari centerline upper-arm","motor J3 remote di pangkal, belt naik ke sini"],
+    ["J1 base yaw: belt HTD3M 2-stage di base","keluar: kolom vertikal "+O.colH.toFixed(0)+" mm ke J2"],
+    ["J2 shoulder: lekukan #1","kolom "+O.colH.toFixed(0)+" mm ↑, lateral "+fmtOff(O.shoulder)+" mm (sumbu pitch X)","clearance badan cycloidal + motor 60mm coaxial"],
+    ["J3 elbow: lekukan #2","lateral elbow "+fmtOff(O.elbow)+" mm dari centerline upper-arm","motor J3 remote di pangkal, belt naik ke sini"],
     ["J4 forearm roll","inset "+fmtOff(O.fore)+" mm dari bridge elbow ke sumbu roll","sumbu roll = centerline forearm"],
-    ["J5 wrist pitch — MG996R","off-axis w5 = "+fmtOff(O.w5)+" mm (WAJIB 0)","wrist concurrent = syarat closed-form IK"],
-    ["J6 end roll — MG996R","off-axis w6 = "+fmtOff(O.w6)+" mm (WAJIB 0)","offset flange boleh SETELAH J6, bukan antar sumbu wrist"],
+    ["J5 wrist pitch: MG996R","off-axis w5 = "+fmtOff(O.w5)+" mm (WAJIB 0)","wrist concurrent = syarat closed-form IK"],
+    ["J6 end roll: MG996R","off-axis w6 = "+fmtOff(O.w6)+" mm (WAJIB 0)","offset flange boleh SETELAH J6, bukan antar sumbu wrist"],
   ][i];
 }
 function buildEnvelope(i){
@@ -1166,7 +1166,7 @@ function updateHud(){
   const reach=Math.hypot(ee.x,ee.z).toFixed(0), height=ee.y.toFixed(0);
   const total=MASSES.reduce((s,m)=>s+ (m.label==="payload"?STATE.payload:m.m),0);
   // worst joint
-  let worst="—",wm=0; STATE.joints.forEach((j,i)=>{const h=haveTorque(j);const r=h>0?(lastTorques[i]*STATE.sf)/h:0;if(r>wm){wm=r;worst=j.id;}});
+  let worst="-",wm=0; STATE.joints.forEach((j,i)=>{const h=haveTorque(j);const r=h>0?(lastTorques[i]*STATE.sf)/h:0;if(r>wm){wm=r;worst=j.id;}});
   const dCol=wristDrift>2?getCSS('--over'):wristDrift>0.5?getCSS('--warn'):getCSS('--ok');
   const dTxt=wristDrift>2?"IK closed-form PECAH":wristDrift>0.5?"marginal":"concurrent ✓";
   document.getElementById('hudTop').innerHTML=

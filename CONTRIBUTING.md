@@ -1,6 +1,6 @@
 # Berkontribusi
 
-Terima kasih atas minatnya! Proyek ini adalah skripsi open source — kontribusi,
+Terima kasih atas minatnya! Proyek ini adalah skripsi open source, kontribusi,
 issue, dan saran dipersilakan.
 
 ## Cara berkontribusi
@@ -14,13 +14,13 @@ issue, dan saran dipersilakan.
 
 ## Lingkup
 
-- **Kode Python** (`src/arm/`, `benchmarks/`) — kontrol, analisis, sizing.
-- **Firmware** (`firmware/`) — Arduino; cantumkan motor/driver yang diuji.
-- **Digital twin** (`studio/`) — web Three.js.
-- **Dokumen** (`docs/`, `thesis/`) — perbaikan, sumber tambahan dengan sitasi.
+- **Kode Python** (`src/arm/`, `benchmarks/`): kontrol, analisis, sizing.
+- **Firmware** (`firmware/`): Arduino; cantumkan motor/driver yang diuji.
+- **Digital twin** (`studio/`): web Three.js.
+- **Dokumen** (`docs/`, `thesis/`): perbaikan, sumber tambahan dengan sitasi.
 
 ## Mengubah parameter fisik
 
 Semua parameter (panjang link, massa, motor) ada di `src/arm/config.py`. Setelah
-mengubahnya, jalankan `pytest` — sebagian uji mengunci nilai ke dokumen riset,
+mengubahnya, jalankan `pytest`, sebagian uji mengunci nilai ke dokumen riset,
 jadi sesuaikan acuannya bila perubahan memang disengaja.

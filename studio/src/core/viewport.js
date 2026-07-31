@@ -1,5 +1,5 @@
 /* ============================================================================
-   Viewport — renderer, scene, kamera (persp + ortho), lighting, grid, material,
+   Viewport: renderer, scene, kamera (persp + ortho), lighting, grid, material,
    kontrol orbit/pan/zoom custom (mouse + touch), label sprite, render loop.
    Diport dari studio/legacy/index.html; API Three.js dinaikkan ke modul r160.
    ========================================================================== */

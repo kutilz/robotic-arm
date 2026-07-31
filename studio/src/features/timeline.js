@@ -1,5 +1,5 @@
 /* ============================================================================
-   Timeline / playback (bottom bar) — mengadopsi fitur 3D simulation Waldo.
+   Timeline / playback (bottom bar): mengadopsi fitur 3D simulation Waldo.
    Rekam keyframe pose sendi, interpolasi linear, play/pause/scrub.
    Juga sumber sampel trajektori untuk path preview.
    ========================================================================== */

@@ -1,5 +1,5 @@
 /* ============================================================================
-   Control card (kanan-bawah) — tab JOINT | CARTESIAN | MOTION | SETUP +
+   Control card (kanan-bawah): tab JOINT | CARTESIAN | MOTION | SETUP +
    footer (home, send goto, E-STOP). Menggantikan left dock lama.
    ========================================================================== */
 import { STATE, POSE_PRESETS } from '../config/arm.js';
@@ -154,14 +154,14 @@ export function buildControlCard(card) {
   bSend.innerHTML = icon('send'); bSend.onclick = () => { if (!sendGoto()) alert('Belum terhubung ke bridge.'); };
   const grow = document.createElement('div'); grow.className = 'grow';
   const estop = document.createElement('button'); estop.id = 'estop'; estop.className = 'estop';
-  estop.title = 'Emergency stop — hentikan semua gerak'; estop.textContent = 'E-STOP';
+  estop.title = 'Emergency stop: hentikan semua gerak'; estop.textContent = 'E-STOP';
   foot.append(bHome, bSend, grow, estop);
   card.appendChild(foot);
 
   initJogSync();
 }
 
-/** toggle gizmo drag TCP (shortcut G) — sinkron dengan toggle di tab CARTESIAN. */
+/** toggle gizmo drag TCP (shortcut G), sinkron dengan toggle di tab CARTESIAN. */
 export function toggleGizmo() {
   const on = !getTcpEnabled();
   setTcpDrag(on);

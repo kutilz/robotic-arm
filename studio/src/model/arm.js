@@ -1,5 +1,5 @@
 /* ============================================================================
-   buildArm — FK hierarchy lengan 6-DOF. Diport dari legacy.
+   buildArm: FK hierarchy lengan 6-DOF. Diport dari legacy.
    Semua referensi node disimpan di `world` agar modul fitur (jog, inspector,
    timeline, path) bisa memakainya.
    ========================================================================== */

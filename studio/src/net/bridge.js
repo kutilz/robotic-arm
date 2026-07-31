@@ -1,5 +1,5 @@
 /* ============================================================================
-   Bridge WebSocket — digital twin <-> lengan fisik / simulasi.
+   Bridge WebSocket: digital twin <-> lengan fisik / simulasi.
    Protokol (firmware/README.md):
      masuk : {"type":"feedback","angles":[a1..a6],"estop":b,"fault":[f1..f4]}
              {"type":"ack","cmd":"...","ok":b,"msg":"..."}

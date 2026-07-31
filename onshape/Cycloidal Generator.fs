@@ -23,26 +23,26 @@ import(path : "onshape/std/common.fs", version : "3008.0");
  *          ngunci rotasi disk -> housing+roller+cover jadi OUTPUT.
  *          Rasio = N : 1  (N = jumlah ring pin).
  *          Di mode ini flange housing TIDAK punya lubang output pin (dowel
- *          statik lewat bore tengah flange yang terbuka) — di v4 lama lubang
+ *          statik lewat bore tengah flange yang terbuka), di v4 lama lubang
  *          nominal itu bikin housing ke-lock sama dowel statik + flange nabrak
  *          bottom base. Sekarang bore flange otomatis > base plate.
  *        LEGACY_HUB (v2/v3): housing statik, output hub di atas.
  *          Rasio = (N-1) : 1.
- *   5. FIT NOMINAL — lubang roller, dowel output, & baut M3 default = diameter
+ *   5. FIT NOMINAL: lubang roller, dowel output, & baut M3 default = diameter
  *      NOMINAL (yang kamu input keluar apa adanya). Clearance/interference
  *      diset MANUAL di grup "Fit / Tolerance" (default 0). Gak ada fit empiris
  *      tersembunyi lagi (dulu ANCHOR/LOCATE/GRIP/CLEAR nambah 0.14/0.25/0.10/0.20).
  *
  * Perubahan v5.1 (UX interface layout):
- *   a. OVERRIDE PER-DIMENSI — saklar "Auto Layout" all-or-nothing DIHAPUS.
+ *   a. OVERRIDE PER-DIMENSI: saklar "Auto Layout" all-or-nothing DIHAPUS.
  *      Layout selalu auto; tiap dimensi punya checkbox "Override ..." sendiri.
  *      Yang gak dicentang tetap ngikut geometri, termasuk ngikutin dimensi
  *      yang KAMU override (pinCircle -> base plate -> flange bore / cover ring).
  *      Dulu matiin auto = 11 dimensi sekaligus lepas ke default statis yang
  *      saling bentrok -> betulin satu, muncul error berikutnya.
- *   b. VALIDASI TERKUMPUL — semua konflik dilaporin SEKALI, bernomor, bukan
+ *   b. VALIDASI TERKUMPUL: semua konflik dilaporin SEKALI, bernomor, bukan
  *      report-and-return per cek.
- *   c. PESAN BER-RANGE — tiap error nyebut jendela legal dua sisi + nilai auto
+ *   c. PESAN BER-RANGE: tiap error nyebut jendela legal dua sisi + nilai auto
  *      sebagai titik balik. Kalau jendelanya kosong (lo > hi) dibilang eksplisit
  *      + Dr minimum yang dibutuhkan, karena di situ ngutak-atik dimensi itu
  *      sendiri gak akan pernah selesai.
@@ -67,7 +67,7 @@ import(path : "onshape/std/common.fs", version : "3008.0");
  *   diameter lubang = 2*nomR + clearance   (clearance dari parameter grup
  *   "Fit / Tolerance"; boleh negatif utk interference/press-fit).
  *
- * Rumus profil cycloidal — BASE HYPOTROCHOID (N-1 lobus, lobe tip di t=0):
+ * Rumus profil cycloidal: BASE HYPOTROCHOID (N-1 lobus, lobe tip di t=0):
  *   xa = Rr*sin(t) + e*sin(N*t)   [local frame, disk center di origin]
  *   ya = Rr*cos(t) + e*cos(N*t)
  *   r^2 = Rr^2 + e^2 + 2*Rr*e*cos((N-1)*t)  -> N-1 lobus
@@ -417,7 +417,7 @@ function makeHousing(context is Context, id is Id, def is map)
         "operationType" : BooleanOperationType.SUBTRACTION
     });
 
-    // ── N_out output pin holes di bottom flange — LEGACY_HUB mode SAJA ────────
+    // ── N_out output pin holes di bottom flange, LEGACY_HUB mode SAJA ────────
     // v5: di HOUSING_OUTPUT lubang ini dihilangkan. Dowel output statik dan
     // flange ini ikut MUTER sebagai output; lubang nominal di sini bakal
     // ngunci housing ke dowel (bug v4). Bore ring flange yang buka jalannya.
@@ -545,7 +545,7 @@ function makeDisk(context is Context, id is Id, def is map)
         var cR = cos(lobeRot);
         var sR = sin(lobeRot);
 
-        // ── BASE HYPOTROCHOID — DUA SETENGAH (di-rotasi rigid sebesar lobeRot) ─
+        // ── BASE HYPOTROCHOID: DUA SETENGAH (di-rotasi rigid sebesar lobeRot) ─
         var half   = nPts / 2;
         var halfA  = [];
         var halfB  = [];
@@ -736,7 +736,7 @@ function makeCam(context is Context, id is Id, def is map)
 
     if (dual)
     {
-        // ── Boss 2, center (-e, 0) — berlawanan 180 deg dari boss 1 ──────────
+        // ── Boss 2, center (-e, 0), berlawanan 180 deg dari boss 1 ──────────
         var skBoss2 = newSketchOnPlane(context, id + "skBoss2", {
             "sketchPlane" : zPlane(zOff + boss1H)
         });

@@ -1,4 +1,4 @@
-# Robotic Arm 6-DOF 3D Printed — Cycloidal Drive
+# Robotic Arm 6-DOF 3D Printed: Cycloidal Drive
 
 > **Skripsi:** *Rancang Bangun Robotic Arm 6-DOF 3D Printed dengan Mekanisme
 > Position Feedback dan Interface Digital Twin Berbasis Web*
@@ -30,17 +30,17 @@ Proyek ini open source: silakan dipelajari, direplikasi, dan dikembangkan.
    Digital Twin Web  (Three.js, mirror real-time)    studio/index.html
 ```
 
-ESP32 melayani WebSocket sendiri — tak perlu bridge untuk hardware nyata.
+ESP32 melayani WebSocket sendiri, tak perlu bridge untuk hardware nyata.
 Bridge Python (`src/arm/bridge.py`) kini opsional, dipakai untuk mode
 `--simulate` (digital twin tanpa hardware) atau board Mega legacy.
 
 Tiga kontribusi skripsi yang tercermin di repo:
 
-1. **Rancang bangun mekanik** — gearbox cycloidal cetak 3D, sizing motor/gearbox
+1. **Rancang bangun mekanik**: gearbox cycloidal cetak 3D, sizing motor/gearbox
    (`docs/research/`, dikodekan & diuji di `src/arm/torque.py`).
-2. **Position feedback** — 4× encoder AS5600 di output J1-J4 + pot internal
+2. **Position feedback**: 4× encoder AS5600 di output J1-J4 + pot internal
    servo J5/J6, kontrol closed-loop (`firmware/`).
-3. **Digital twin web** — visualisasi & kontrol real-time (`studio/`, opsional
+3. **Digital twin web**: visualisasi & kontrol real-time (`studio/`, opsional
    `bridge.py` untuk simulasi).
 
 ---
@@ -52,7 +52,7 @@ Tiga kontribusi skripsi yang tercermin di repo:
 | `src/arm/`       | Paket Python: `config` (parameter), `torque` (sizing), `kinematics` (FK), `bridge` (digital twin) |
 | `firmware/`      | Sketch ESP32 (aktif) + legacy Mega: kontrol stepper/servo closed-loop + encoder AS5600            |
 | `benchmarks/`    | Skrip benchmark torsi & efisiensi (prediksi vs terukur)                                           |
-| `studio/`        | Digital twin web (Three.js) — Cycloidal Arm Studio                                                |
+| `studio/`        | Digital twin web (Three.js), Cycloidal Arm Studio                                                |
 | `thesis/`        | Outline & panduan penulisan skripsi (template Word)                                               |
 | `docs/research/` | Dokumen riset sizing motor & cycloidal drive                                                      |
 | `tests/`         | Uji otomatis (memverifikasi perhitungan = dokumen riset)                                          |
@@ -101,7 +101,7 @@ Temuan kunci: **hanya bahu (J2) yang mendekati batas torsi PLA+ cetak** (ceiling
 berstatus 🟡 *conditional* (marginal di faktor dinamis 2.5×; J2 sanggup menahan
 100% workspace secara statik tetapi hanya 73.6% pada target 2.5×). J1 sedikit di
 bawah target inersia (0.91×). Mitigasi opsional counterbalance/rasio/motor
-cadangan — lihat dokumen. Rincian & sumber: lihat
+cadangan, lihat dokumen. Rincian & sumber: lihat
 [`docs/research/arsitektur_final_robotic_arm_6dof.md`](docs/research/arsitektur_final_robotic_arm_6dof.md).
 
 ---
@@ -111,8 +111,8 @@ cadangan — lihat dokumen. Rincian & sumber: lihat
 - [x] Riset & sizing motor/gearbox per sendi
 - [x] Kode perhitungan torsi + kinematika + uji otomatis
 - [x] Digital twin web (mode simulasi)
-- [ ] Cetak & rakit wrist cluster — validasi J4 cycloidal 1:15 + J5/J6 servo direct
-- [ ] Prototipe siku (J3) 1:30 — uji ke ~3.5 N·m
+- [ ] Cetak & rakit wrist cluster: validasi J4 cycloidal 1:15 + J5/J6 servo direct
+- [ ] Prototipe siku (J3) 1:30, uji ke ~3.5 N·m
 - [ ] Integrasi 4 encoder AS5600 (J1-J4) + closed-loop di firmware
 - [ ] Bridge real-time hardware <-> digital twin
 - [ ] Benchmark torsi & efisiensi (prediksi vs terukur)
@@ -125,4 +125,4 @@ cadangan — lihat dokumen. Rincian & sumber: lihat
 Dilisensikan di bawah [MIT](LICENSE). Bila proyek ini membantu riset Anda, mohon
 sitasi (lihat [`CITATION.cff`](CITATION.cff)).
 
-Kontribusi dipersilakan — lihat [`CONTRIBUTING.md`](CONTRIBUTING.md).
+Kontribusi dipersilakan, lihat [`CONTRIBUTING.md`](CONTRIBUTING.md).

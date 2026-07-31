@@ -67,7 +67,7 @@ Kolom `ratio` harus berisi rasio tahap yang benar-benar diukur. Untuk J3 yang
 memakai belt 3:1 lalu cycloidal 1:10, mengukur dari poros motor berarti rasio 30
 dan yang terhitung adalah efisiensi gabungan, bukan cycloidal saja.
 
-### 3. Benchmark akurasi posisi (`accuracy_test.py`) — pilar Position Feedback
+### 3. Benchmark akurasi posisi (`accuracy_test.py`): pilar Position Feedback
 
 Hasil pamungkas skripsi. Metrik ISO 9283 diadaptasi ke ruang sendi:
 
@@ -93,7 +93,7 @@ Keluaran: `data/accuracy_summary.csv` (Tabel 4.6) dan
 > selisih perintah dan pembacaan encoder adalah **residual loop kontrol**, bukan
 > akurasi absolut. Laporkan apa adanya di Bab IV.
 
-### 4. Benchmark latensi digital twin (`latency_test.py`) — pilar Digital Twin
+### 4. Benchmark latensi digital twin (`latency_test.py`): pilar Digital Twin
 
 Latensi end-to-end (target < 100 ms), update rate (target ≥ 30 Hz), dan sync
 error sudut twin terhadap fisik.

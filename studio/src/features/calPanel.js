@@ -1,5 +1,5 @@
 /* ============================================================================
-   Tab CAL — panel komisioning gaya PLC/servo-drive industrial.
+   Tab CAL: panel komisioning gaya PLC/servo-drive industrial.
    Filosofi arsitektur: firmware = EXECUTOR primitif (cal_*, diag, load_*);
    SEMUA sequencing, perhitungan (uji rasio, gram->Newton->torsi, peak hold),
    dan logging CSV (data skripsi) hidup di file ini.
@@ -119,7 +119,7 @@ function zero(i) {
 
 function flipDir(i) {
   if (!lastCal || !Array.isArray(lastCal.enc_sign)) {
-    hint('kalibrasi belum terbaca — tekan READ dulu', false);
+    hint('kalibrasi belum terbaca, tekan READ dulu', false);
     sendCalGet();
     return;
   }
@@ -192,7 +192,7 @@ function fillParams() {
     tmcInp.microstep.value = String(lastCal.tmc_microstep);
   if (lastCal.tmc_spread != null && setSpreadSeg) setSpreadSeg(Number(lastCal.tmc_spread));
   rsenseEl.textContent = lastCal.tmc_rsense != null
-    ? `R_SENSE ${lastCal.tmc_rsense} Ω — cocokkan dengan marking resistor di modul`
+    ? `R_SENSE ${lastCal.tmc_rsense} Ω, cocokkan dengan marking resistor di modul`
     : 'firmware tanpa UART TMC (USE_TMC_UART 0)';
 }
 
@@ -268,7 +268,7 @@ function renderDiag(d) {
 }
 
 /* Readback driver TMC2209. "set" = arus jalan yang terprogram (IRUN), "live" =
-   arus yang benar-benar aktif detik ini (CS_ACTUAL) — saat diam nilainya turun
+   arus yang benar-benar aktif detik ini (CS_ACTUAL), saat diam nilainya turun
    ke arus tahan, itu normal dan justru bukti TPOWERDOWN bekerja.
    Catatan: kedua angka ini skala DIGITAL. Bila lamp VREF menyala, pot analog
    masih ikut mengali arus dan angka di sini terlalu optimistis. */
@@ -338,9 +338,9 @@ function setService(on, segBtns) {
   if (on) {
     if (isConnected()) sendCalGet();
     pollTimer = setInterval(() => { if (isConnected()) sendDiag(); }, DIAG_MS);
-    hint('SERVICE aktif — aksi tulis terbuka, diag dipoll 5 Hz');
+    hint('SERVICE aktif: aksi tulis terbuka, diag dipoll 5 Hz');
   } else {
-    hint('MONITOR — hanya baca');
+    hint('MONITOR: hanya baca');
   }
   refreshLock();
 }
@@ -367,7 +367,7 @@ export function buildCalPanel(body) {
   body.appendChild(head);
 
   infoEl = document.createElement('div'); infoEl.className = 'mini';
-  infoEl.textContent = 'diag belum ada — aktifkan SERVICE saat terhubung';
+  infoEl.textContent = 'diag belum ada, aktifkan SERVICE saat terhubung';
   body.appendChild(infoEl);
 
   /* step jog kalibrasi */
@@ -455,7 +455,7 @@ export function buildCalPanel(body) {
   }, { danger: true });
   body.appendChild(pBtns);
 
-  /* driver TMC2209 — arus & karakter chopper, runtime tanpa re-flash.
+  /* driver TMC2209: arus & karakter chopper, runtime tanpa re-flash.
      APPLY DRIVER terpisah dari APPLY parameter karena efeknya beda kelas:
      yang ini menyentuh register chip dan sempat mematikan tahap output. */
   const cap4 = document.createElement('div'); cap4.className = 'calCap';
@@ -507,7 +507,7 @@ export function buildCalPanel(body) {
     tmcInp.microstep.appendChild(o);
   }
   tmcInp.microstep.value = '16';
-  tmcInp.microstep.title = 'microstep ikut menskala step/derajat — firmware '
+  tmcInp.microstep.title = 'microstep ikut menskala step/derajat, firmware '
     + 'me-resync step counter otomatis saat ini berubah';
   addT('microstep', tmcInp.microstep);
 

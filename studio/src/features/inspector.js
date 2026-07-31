@@ -1,5 +1,5 @@
 /* ============================================================================
-   Inspector — mode (arm/offsets/drive), offset-focus per joint (ghost + envelope),
+   Inspector: mode (arm/offsets/drive), offset-focus per joint (ghost + envelope),
    sweep ghost J3, inspect-drive scene, dan rebuild. Port dari legacy.
    ========================================================================== */
 import { THREE, scene, cam, camTarget, applyCam, M, cyl, makeLabel } from '../core/viewport.js';
@@ -51,12 +51,12 @@ export function refreshVisToggles() {
 function offsetInfo(i) {
   const O = OFFS;
   return [
-    ['J1 base yaw — belt HTD3M 2-stage di base', 'keluar: kolom vertikal ' + O.colH.toFixed(0) + ' mm ke J2'],
-    ['J2 shoulder — lekukan #1', 'kolom ' + O.colH.toFixed(0) + ' mm naik, lateral ' + fmtOff(O.shoulder) + ' mm (sumbu pitch X)', 'clearance body cycloidal + motor 60mm coaxial'],
-    ['J3 elbow — lekukan #2', 'lateral elbow ' + fmtOff(O.elbow) + ' mm dari centerline upper-arm', 'motor J3 remote di pangkal, belt naik ke sini'],
+    ['J1 base yaw: belt HTD3M 2-stage di base', 'keluar: kolom vertikal ' + O.colH.toFixed(0) + ' mm ke J2'],
+    ['J2 shoulder: lekukan #1', 'kolom ' + O.colH.toFixed(0) + ' mm naik, lateral ' + fmtOff(O.shoulder) + ' mm (sumbu pitch X)', 'clearance body cycloidal + motor 60mm coaxial'],
+    ['J3 elbow: lekukan #2', 'lateral elbow ' + fmtOff(O.elbow) + ' mm dari centerline upper-arm', 'motor J3 remote di pangkal, belt naik ke sini'],
     ['J4 forearm roll', 'inset ' + fmtOff(O.fore) + ' mm dari bridge elbow ke sumbu roll', 'sumbu roll = centerline forearm'],
-    ['J5 wrist pitch — MG996R', 'off-axis w5 = ' + fmtOff(O.w5) + ' mm (WAJIB 0)', 'wrist concurrent = syarat closed-form IK'],
-    ['J6 end roll — MG996R', 'off-axis w6 = ' + fmtOff(O.w6) + ' mm (WAJIB 0)', 'offset flange boleh SETELAH J6, bukan antar sumbu wrist'],
+    ['J5 wrist pitch: MG996R', 'off-axis w5 = ' + fmtOff(O.w5) + ' mm (WAJIB 0)', 'wrist concurrent = syarat closed-form IK'],
+    ['J6 end roll: MG996R', 'off-axis w6 = ' + fmtOff(O.w6) + ' mm (WAJIB 0)', 'offset flange boleh SETELAH J6, bukan antar sumbu wrist'],
   ][i];
 }
 function buildEnvelope(i) {

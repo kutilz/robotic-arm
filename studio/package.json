@@ -3,7 +3,7 @@
   "version": "0.2.0",
   "private": true,
   "type": "module",
-  "description": "Digital twin web untuk lengan robot 6-DOF cycloidal (skripsi) — viewer + kontrol jog/timeline/path ala Waldo Commander.",
+  "description": "Digital twin web untuk lengan robot 6-DOF cycloidal (skripsi): viewer + kontrol jog/timeline/path ala Waldo Commander.",
   "scripts": {
     "dev": "vite",
     "build": "vite build",

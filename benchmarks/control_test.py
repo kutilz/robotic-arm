@@ -516,7 +516,7 @@ def plot_gangguan(seri: dict, hasil: dict, deadband: float, out_path: Path) -> N
                        color=V.SERIES[0], alpha=0.10)
             V.annotate_value(ax, 0, acuan + deadband, "deadband",
                              dx=4, dy=4, size=8.5, color=V.INK_SECOND)
-        ax.set_title(f"{test} — {joint}")
+        ax.set_title(f"{test}: {joint}")
         ax.set_xlabel("waktu (s)")
         ax.set_ylabel("sudut keluaran sendi (derajat)")
         ax.legend(loc="best")

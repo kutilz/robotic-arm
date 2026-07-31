@@ -1,5 +1,5 @@
 /* ============================================================================
-   Jog — logika kontrol Waldo Commander, dipakai oleh controlCard.
+   Jog: logika kontrol Waldo Commander, dipakai oleh controlCard.
    - buildJointRows : 6 baris [−][slider+nilai][+] (merangkap pose slider).
    - buildCartPad   : pad X/Y/Z + RX/RY/RZ (IK numerik).
    - Hormati E-STOP (semua jog nonaktif saat tripped).
@@ -50,7 +50,7 @@ function flashUnreachable() {
   flashT = setTimeout(() => { el.dataset.warn = ''; el.textContent = 'step ' + stepLabel('cart'); }, 1200);
 }
 
-/* tombol tekan-tahan (auto-repeat ala Waldo jogging) — juga dipakai tab CAL. */
+/* tombol tekan-tahan (auto-repeat ala Waldo jogging), juga dipakai tab CAL. */
 export function holdBtn(btn, fn) {
   let t = null, rpt = null;
   const start = (e) => { e.preventDefault(); if (STATE.estop) return; fn(); t = setTimeout(() => { rpt = setInterval(fn, 90); }, 320); };

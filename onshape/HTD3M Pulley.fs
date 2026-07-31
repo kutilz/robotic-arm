@@ -1,7 +1,7 @@
 /**
- * Pulley HTD3M — Adjustable Timing Pulley Generator
+ * Pulley HTD3M: Adjustable Timing Pulley Generator
  * ===================================================
- * Onshape EDU — FeatureScript 2945
+ * Onshape EDU, FeatureScript 2945
  *
  * Tooth profile: geometri HTD3M ASLI, bukan approximasi. Konstanta
  * (pitch, u, h, r0, rs) dan algoritma arc construction diambil dari

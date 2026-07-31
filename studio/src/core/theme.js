@@ -1,5 +1,5 @@
 /* ============================================================================
-   Tema — dark-only, sistem warna mengadopsi Waldo Commander.
+   Tema: dark-only, sistem warna mengadopsi Waldo Commander.
    - UI dikendalikan CSS variable (styles/theme.css).
    - Scene (Three.js) tidak bisa baca CSS variable, jadi warna hex ada di sini.
    Axis mengikuti konvensi robotics (X merah, Y hijau, Z biru) versi CVD-aware.

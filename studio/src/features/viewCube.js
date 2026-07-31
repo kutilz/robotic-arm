@@ -1,5 +1,5 @@
 /* ============================================================================
-   View cube — orientasi kamera ala Onshape. Dua bagian:
+   View cube: orientasi kamera ala Onshape. Dua bagian:
    1. buildViewButtons(): tombol Iso/Depan/Belakang/Kanan/Kiri/Atas/Bawah +
       toggle perspektif/ortho, dipasang di scene panel.
    2. buildGizmo(): overlay triad sumbu X(coral) Y(teal) Z(purple) di pojok

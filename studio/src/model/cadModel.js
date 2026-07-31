@@ -1,5 +1,5 @@
 /* ============================================================================
-   cadModel — muat mesh CAD asli (Testing Assembly.glb, export Onshape) sebagai
+   cadModel: muat mesh CAD asli (Testing Assembly.glb, export Onshape) sebagai
    pengganti visual model parametrik lama.
 
    CATATAN penting:

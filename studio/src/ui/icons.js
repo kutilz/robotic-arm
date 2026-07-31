@@ -1,5 +1,5 @@
 /* ============================================================================
-   Inline SVG icons (gaya Lucide, stroke currentColor) — tanpa dependency.
+   Inline SVG icons (gaya Lucide, stroke currentColor), tanpa dependency.
    Pakai: el.innerHTML = icon('play')  atau  btn.append(iconEl('play')).
    ========================================================================== */
 

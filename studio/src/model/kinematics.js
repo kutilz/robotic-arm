@@ -1,5 +1,5 @@
 /* ============================================================================
-   Kinematics — FK pose, torsi gravitasi, wrist drift (port dari legacy) plus
+   Kinematics: FK pose, torsi gravitasi, wrist drift (port dari legacy) plus
    IK numerik damped-least-squares (baru) untuk jog Cartesian + TCP readout.
    ========================================================================== */
 import { THREE, scene, camTarget } from '../core/viewport.js';
@@ -118,7 +118,7 @@ export function eePositionsFor(anglesList) {
 }
 
 /* ============================================================================
-   IK numerik — damped least squares dengan Jacobian numerik.
+   IK numerik: damped least squares dengan Jacobian numerik.
    Beroperasi langsung pada STATE.joints[i].a (derajat) memakai scene graph nyata
    sebagai FK. Dipakai jog Cartesian (translasi + orientasi TCP).
    ========================================================================== */

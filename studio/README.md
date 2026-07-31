@@ -1,4 +1,4 @@
-# Digital Twin Web — Cycloidal Arm Studio
+# Digital Twin Web: Cycloidal Arm Studio
 
 Visualisasi 3D interaktif (Three.js) yang berperan sebagai **digital twin**:
 mencerminkan posisi sendi lengan fisik secara real-time, menyediakan kontrol jog,
@@ -7,14 +7,14 @@ IK numerik, playback trajektori, dan mengirim perintah target balik ke lengan.
 Layout mengikuti gaya Waldo Commander: scene 3D full-viewport dengan panel-panel
 floating semi-transparan (dark-only):
 
-- **Kiri-atas** — scene panel (collapsible): brand, view toggles, exploded view,
+- **Kiri-atas**: scene panel (collapsible): brand, view toggles, exploded view,
   mode pill (Full arm / Offsets / Drive, hanya tampil di Engineering mode).
-- **Kanan-atas** — status card: nama lengan, badge koneksi, readout TCP besar
+- **Kanan-atas**: status card: nama lengan, badge koneksi, readout TCP besar
   X/Y/Z + RX/RY/RZ, baris reach / beban / tightest joint / wrist drift.
-- **Kanan-bawah** — control card ber-tab **JOINT | CARTESIAN | MOTION | SETUP**
+- **Kanan-bawah**: control card ber-tab **JOINT | CARTESIAN | MOTION | SETUP**
   dengan footer home / send-goto / E-STOP bulat merah.
-- **Bawah-tengah** — timeline pill (transport + scrub + keyframe), redup saat kosong.
-- **Kiri-bawah** — icon strip: kamera ISO/F/S/T, ortho, legend, wrench (Engineering).
+- **Bawah-tengah**: timeline pill (transport + scrub + keyframe), redup saat kosong.
+- **Kiri-bawah**: icon strip: kamera ISO/F/S/T, ortho, legend, wrench (Engineering).
 - **Engineering drawer** (slide dari kanan, toggle wrench / tombol `E`): offsets
   packaging, offset inspector, sizing, joint torque check, cycloidal geometry.
 
@@ -98,8 +98,8 @@ sebagai referensi. Aplikasi aktif adalah versi modular di `src/`.
 beroperasi langsung pada scene graph Three.js sebagai FK. Dipakai jog Cartesian,
 drag TCP, dan demo lingkaran. `solveIK(targetPos, targetQuat, opts)`:
 
-- `useOrient` — sertakan error orientasi (6-DOF) atau posisi saja (3-DOF).
-- `partial` — pertahankan hasil best-effort tanpa revert (untuk drag/trace lingkaran).
+- `useOrient`: sertakan error orientasi (6-DOF) atau posisi saja (3-DOF).
+- `partial`: pertahankan hasil best-effort tanpa revert (untuk drag/trace lingkaran).
 
 ## Menyambung ke lengan fisik / simulasi
 
