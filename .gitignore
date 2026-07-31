@@ -60,6 +60,9 @@ studio/node_modules/
 onshape/*.zip
 onshape/*.obj
 onshape/*.mtl
+# Proyek slicer (17 MB). Dipakai tools/measure_print_mass.py; hasil ukurannya
+# sudah dicatat di docs/pengukuran-massa-cad.md jadi repo tetap bisa dibaca.
+onshape/*.3mf
 
 # PlatformIO (build firmware ESP32)
 firmware/**/.pio/
