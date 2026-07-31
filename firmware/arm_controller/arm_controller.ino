@@ -1,5 +1,5 @@
 /*
- * arm_controller.ino — Firmware kontrol lengan robot 6-DOF cycloidal
+ * arm_controller.ino: Firmware kontrol lengan robot 6-DOF cycloidal
  *
  * Skripsi: Rancang Bangun Robotic Arm 6-DOF 3D Printed dengan Mekanisme
  *          Position Feedback dan Interface Digital Twin Berbasis Web
@@ -13,7 +13,7 @@
  *
  * Hardware final: J1/J3/J4 stepper 17HS2401, J2 17HS6401S, J5/J6 servo MG996R;
  * AS5600 hanya 4 unit (J1-J4, mux channel 0-3), J5/J6 pakai pot internal servo
- * lewat ADC1 ESP32.
+ * yang dibaca ADS1115 di bus I2C (lihat pinout.md §3).
  * ==========================================================================
  *
  * Position feedback (arsitektur lama sketch ini):

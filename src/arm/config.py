@@ -15,6 +15,7 @@ Aktuator FINAL (dikonfirmasi user 2026-07-27):
     J1, J3, J4 : stepper 17HS2401  (holding 0.45 N.m, 1.7 A)
     J2         : stepper 17HS6401S (holding 0.70 N.m, 2.0 A)
     J5, J6     : servo MG996R direct drive
+                 (gripper MG90S di luar 6 DOF, tidak masuk JOINTS)
 Transmisi FINAL:
     J1 belt HTD3M 2 stage 1:15 (12T->60T lalu 20T->60T)
     J2 cycloidal 1:30 (roller pin dowel 5 mm)
@@ -178,11 +179,13 @@ MOTORS: dict[str, Motor] = {
 #   J1..J4 : 4x AS5600 magnetik absolut di OUTPUT sendi (ikut mengukur
 #            backlash gearbox). Alamat I2C sama (0x36), diakses lewat
 #            multiplekser TCA9548A, channel 0-3.
-#   J5..J6 : potensiometer internal servo MG996R disadap, dibaca lewat ADC1
-#            internal ESP32 (GPIO 34/35). BUKAN AS5600, BUKAN ADS1115, dan
-#            tidak memakai channel mux.
+#   J5..J6 : potensiometer internal servo MG996R dibaca lewat ADS1115 (ADC
+#            eksternal 16-bit, alamat 0x48) yang menumpang bus I2C yang sama
+#            dengan mux. BUKAN AS5600, BUKAN ADC internal ESP32, dan tidak
+#            memakai channel mux. Gripper MG90S ikut jalur ini (kanal A2),
+#            tapi tidak masuk JOINTS karena bukan derajat kebebasan.
 ENC_AS5600 = "as5600"        # absolut, dipasang di output sendi (J1..J4)
-ENC_SERVO_POT = "servo_pot"  # pot internal servo -> ADC1 ESP32 (J5, J6)
+ENC_SERVO_POT = "servo_pot"  # pot internal servo -> ADS1115 (J5, J6)
 
 # --- Sumber error sudut per sendi (untuk propagasi error posisi) ---------
 AS5600_COUNTS_PER_REV = 4096            # 12-bit

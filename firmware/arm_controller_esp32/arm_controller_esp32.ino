@@ -1,5 +1,5 @@
 /*
- * arm_controller_esp32.ino — Firmware kontrol lengan robot 6-DOF (ESP32)
+ * arm_controller_esp32.ino: Firmware kontrol lengan robot 6-DOF (ESP32)
  *
  * Skripsi: Rancang Bangun Robotic Arm 6-DOF 3D Printed dengan Mekanisme
  *          Position Feedback dan Interface Digital Twin Berbasis Web
@@ -13,10 +13,14 @@
  *   Position feedback (semua 6 joint punya feedback):
  *     - J1..J4 : AS5600 (absolut magnetik 12-bit) di OUTPUT sendi, via mux
  *                I2C TCA9548A (semua AS5600 ber-alamat sama 0x36).
- *     - J5..J6 : wiper potensiometer internal MG996R disadap, dibaca via ADC1
- *                ESP32 (GPIO 34/35), kalibrasi 2 titik. Ini keputusan FINAL:
- *                BUKAN ADS1115. SERVO_FEEDBACK 1 = aktif (default sekarang);
+ *     - J5..J6 : wiper potensiometer internal MG996R, kalibrasi 2 titik.
+ *                SERVO_FEEDBACK 1 = aktif (default sekarang);
  *                0 -> lapor sudut commanded saja.
+ *                KEPUTUSAN HARDWARE TERBARU: wiper masuk ke ADS1115 (ADC
+ *                eksternal 16-bit, 0x48, menumpang bus I2C yang sama dengan
+ *                mux), BUKAN ke ADC internal ESP32. Gripper MG90S ikut jalur
+ *                itu di kanal A2. Kode di bawah BELUM dimigrasi: masih
+ *                analogReadMilliVolts() di GPIO 34/35. Lihat pinout.md §3.
  *
  * BEDA UTAMA vs sketch Mega (arm_controller.ino, kini legacy):
  *   ESP32 HOST WebSocket server sendiri lewat WiFi -> web nyambung LANGSUNG ke
@@ -52,10 +56,10 @@
  *     tmc_ma[4] (100..1700 mA RMS)  tmc_microstep (1,2,4,...,256)
  *     tmc_spread (0=stealthChop, 1=spreadCycle)  tmc_hold (0..100 %)
  *   diag.drv[4] melaporkan balik kondisi tiap driver TMC2209: irun, cs
- *   (skala arus live), ma/macs (konversi ke mA), vref (bit I_scale_analog —
+ *   (skala arus live), ma/macs (konversi ke mA), vref (bit I_scale_analog,
  *   true = pot VREF masih ikut mengali arus), ot/otpw (termal), s2g (coil
  *   short ke GND), ol (coil open / kabel lepas).
- *   (Offset/skala load cell di-set lewat load_tare/load_scale — bukan cal_set —
+ *   (Offset/skala load cell di-set lewat load_tare/load_scale, bukan cal_set,
  *    dan ikut tersimpan saat cal_save.)
  *
  *   PRINSIP: firmware = EXECUTOR primitif + guardrail. Semua logika tingkat
@@ -118,7 +122,7 @@
 // -> wifi_secrets.h lalu isi daftar preset WiFi + SSID/pass AP fallback.
 // Urutan: coba SEMUA preset (WiFiMulti pilih sinyal terkuat). Gagal semua dalam
 // WIFI_STA_TIMEOUT_MS -> fallback jadi Access Point (ws://192.168.4.1:81)
-// sampai reboot — guardrail supaya ESP32 tidak pernah unreachable.
+// sampai reboot, guardrail supaya ESP32 tidak pernah unreachable.
 // WIFI_FORCE_AP 1 -> langsung AP tanpa coba STA (andal untuk demo/sidang).
 #define WIFI_FORCE_AP 0
 #define WIFI_STA_TIMEOUT_MS 25000
@@ -131,9 +135,10 @@ const char* MDNS_NAME = "armbot";   // -> ws://armbot.local:81 (mode STA)
 const uint16_t WS_PORT = 81;
 
 // --- Fitur opsional ---
-#define SERVO_FEEDBACK 1    // 1 = baca wiper pot MG996R via ADC1 (butuh mod servo).
-                            //     Keputusan user 2026-07-27: jalur feedback J5/J6
-                            //     FINAL pakai ADC1 internal, bukan ADS1115.
+#define SERVO_FEEDBACK 1    // 1 = baca wiper pot MG996R (butuh mod servo).
+                            //     Jalur hardware final = ADS1115 di bus I2C.
+                            //     Implementasi di sini MASIH ADC1 internal dan
+                            //     belum dimigrasi; lihat pinout.md §3.
 #define USE_TMC_UART   1    // 1 = kontrol penuh TMC2209 via UART: arus, microstep,
                             //     stealthChop, StallGuard, diagnostik (butuh TMCStepper)
 #define USE_HX711      1    // 1 = baca load cell via HX711 (bench uji torsi)
@@ -167,14 +172,14 @@ const uint8_t ENC_CHANNEL[NUM_STEPPER] = {0, 1, 2, 3};
 // --- Reduksi & microstep stepper (dari studio/src/config/arm.js JDEF) ---
 // Drivetrain FINAL: J1 belt HTD3M 2 stage 1:15, J2 cycloidal 1:30,
 // J3 belt 3:1 + cycloidal 1:10 = 1:30, J4 cycloidal 1:15 (TENTATIVE).
-// RATIO[] hanya DEFAULT kalibrasi — nilai aktif ada di cal.ratio dan bisa
+// RATIO[] hanya DEFAULT kalibrasi, nilai aktif ada di cal.ratio dan bisa
 // diubah runtime via cal_set "ratio" (bench: ganti pulley 15:1 <-> cycloidal
 // 30:1 tanpa re-flash).
 // PENTING: unit yang sudah pernah menyimpan kalibrasi di NVS TIDAK ikut
-// berubah hanya karena di-flash ulang — cal.ratio lama tetap dipakai.
+// berubah hanya karena di-flash ulang, cal.ratio lama tetap dipakai.
 // Set lewat tab CAL studio (cal_set "ratio") atau hapus blob NVS dulu.
 const float RATIO[NUM_STEPPER] = {15, 30, 30, 15};
-// MICROSTEP hanya DEFAULT kalibrasi — nilai aktif ada di cal.tmcMicrostep dan
+// MICROSTEP hanya DEFAULT kalibrasi, nilai aktif ada di cal.tmcMicrostep dan
 // bisa diubah runtime via cal_set "tmc_microstep" (butuh USE_TMC_UART).
 const uint16_t MICROSTEP = 16;
 float STEPS_PER_DEG[NUM_STEPPER];   // diisi recomputeStepsPerDeg() dari cal.ratio
@@ -206,7 +211,7 @@ const uint8_t SERVO_PIN[NUM_SERVO] = {18, 19};
 #if USE_HX711
 // --- HX711 load cell (bench uji torsi) ---
 // DT = GPIO36 (input-only, bebas; HX711 men-drive push-pull jadi tak butuh
-// pull-up — GPIO 34-39 memang tak punya). SCK = GPIO4 (bebas, bukan strapping).
+// pull-up, GPIO 34-39 memang tak punya). SCK = GPIO4 (bebas, bukan strapping).
 // Firmware hanya lapor counts + gram; konversi gram->torsi (x lengan tuas)
 // dilakukan di studio.
 #define HX711_DT   36
@@ -214,6 +219,8 @@ const uint8_t SERVO_PIN[NUM_SERVO] = {18, 19};
 #endif
 
 #if SERVO_FEEDBACK
+// BELUM DIMIGRASI: jalur hardware final adalah ADS1115 di bus I2C (0x48,
+// kanal A0=J5, A1=J6, A2=gripper). Sementara masih ADC1 internal ESP32.
 // WAJIB ADC1 (GPIO 32-39): ADC2 mati saat WiFi aktif. 34/35 input-only = ideal.
 const uint8_t SERVO_FB_PIN[NUM_SERVO] = {34, 35};
 // PERINGATAN: jika tegangan wiper mendekati/melebihi 3300 mV, pasang voltage
@@ -257,7 +264,7 @@ struct Calibration {
   // hanya bila SERVO_FEEDBACK 1; tetap disimpan agar layout blob stabil.
   int16_t servoFbMvMin[NUM_SERVO];
   int16_t servoFbMvMax[NUM_SERVO];
-  // Reduksi tiap joint stepper — runtime supaya bench bisa ganti reducer tanpa
+  // Reduksi tiap joint stepper, runtime supaya bench bisa ganti reducer tanpa
   // re-flash. Perubahan men-trigger recompute STEPS_PER_DEG + re-sync step
   // counter dari sudut aktual (lihat handleCalSet).
   float ratio[NUM_STEPPER];
@@ -265,7 +272,7 @@ struct Calibration {
   // loadScale 0 = belum dikalibrasi (isi via load_tare + load_scale).
   float loadOffset;
   float loadScale;
-  // Driver TMC2209 — runtime supaya arus & karakter chopper bisa dicari dari
+  // Driver TMC2209, runtime supaya arus & karakter chopper bisa dicari dari
   // studio tanpa re-flash. Hanya dipakai bila USE_TMC_UART 1; tetap disimpan
   // agar layout blob stabil.
   uint16_t tmcMa[NUM_STEPPER];   // arus RMS per driver (mA)
@@ -399,7 +406,7 @@ void tcaSelect(uint8_t ch) {
 // Sudut mentah AS5600 (0..360 derajat) pada channel mux tertentu, NAN bila gagal.
 float readAS5600Raw(uint8_t channel) {
   // Guardrail bench: tanpa mux semua channel menunjuk chip yang sama, jadi
-  // hanya channel 0 (J1) yang diaku valid — sisanya langsung NAN (fault ->
+  // hanya channel 0 (J1) yang diaku valid, sisanya langsung NAN (fault ->
   // open-loop), daripada 4 joint diam-diam "membaca" satu encoder.
   if (!muxPresent && channel != ENC_CHANNEL[0]) return NAN;
   tcaSelect(channel);
@@ -457,8 +464,10 @@ int servoAngleToUs(int s, float deg) {
   return (int)(cal.servoUsMin[s] + t * (cal.servoUsMax[s] - cal.servoUsMin[s]));
 }
 
-// Sudut aktual servo. Dengan SERVO_FEEDBACK: baca wiper pot lewat ADC1 +
-// oversampling. Tanpa mod: kembalikan sudut commanded (best effort).
+// Sudut aktual servo. Dengan SERVO_FEEDBACK: baca wiper pot + oversampling.
+// Tanpa mod: kembalikan sudut commanded (best effort).
+// TODO: ganti analogReadMilliVolts() dengan pembacaan ADS1115 (bus I2C),
+// sesuai keputusan hardware di pinout.md §3. Antarmuka fungsi tetap sama.
 float readServoAngle(int s, float commandedDeg) {
 #if SERVO_FEEDBACK
   int spanMv = cal.servoFbMvMax[s] - cal.servoFbMvMin[s];
@@ -523,7 +532,7 @@ void tmcApply() {
 
     // Default chip TMC2209: arus diskalakan tegangan pin VREF. TMCStepper
     // TIDAK mematikannya di begin(), jadi tanpa baris ini rms_current() hanya
-    // menghasilkan (VREF/2.5V) x nilai yang diminta — pada modul ber-VREF
+    // menghasilkan (VREF/2.5V) x nilai yang diminta, pada modul ber-VREF
     // 1.2 V itu cuma 48%. Ini penyebab klasik "arus tidak pernah naik".
     tmc[i].I_scale_analog(false);
     tmc[i].internal_Rsense(false);   // pakai sense resistor eksternal di modul
@@ -589,7 +598,7 @@ float tmcCsToMa(int i, uint8_t cs) {
 // ======================= LOAD CELL (HX711) ================================
 // Bit-bang non-blocking: DT LOW = data ready (~10 Hz), lalu clock 24 bit +
 // 1 pulsa gain (128, channel A). Critical section dijaga pendek (~100 us)
-// supaya pulsa SCK tidak molor >60 us — HX711 masuk power-down kalau molor.
+// supaya pulsa SCK tidak molor >60 us, HX711 masuk power-down kalau molor.
 
 void setupHX711() {
   pinMode(HX711_DT, INPUT);
@@ -620,7 +629,7 @@ void pollHX711() {
   loadLastReady = millis();
 }
 
-// Rata-rata `want` sampel segar (blocking maks ~600 ms — jauh di bawah WDT 5 dtk).
+// Rata-rata `want` sampel segar (blocking maks ~600 ms, jauh di bawah WDT 5 dtk).
 // false bila load cell tidak menghasilkan data sama sekali.
 bool hx711Average(float* out, int want) {
   long long acc = 0; int got = 0;
@@ -737,7 +746,7 @@ void sendCal(uint8_t num) {
   webSocket.sendTXT(num, out);
 }
 
-// Snapshot diagnostik ke satu klien: {"type":"diag",...} — magnet AS5600 per
+// Snapshot diagnostik ke satu klien: {"type":"diag",...}, magnet AS5600 per
 // joint (MD/ML/MH + AGC + magnitude, buat atur jarak magnet fisik), sudut raw &
 // terkoreksi, StallGuard TMC, load cell, WiFi, status mux. Read-only: dipoll
 // UI CAL (~5 Hz) tanpa efek samping ke gerak.
@@ -1100,7 +1109,7 @@ void onWsEvent(uint8_t num, WStype_t type, uint8_t* payload, size_t length) {
 
 // ======================= WIFI =============================================
 
-// Jadi Access Point — dipakai WIFI_FORCE_AP, atau fallback saat semua preset
+// Jadi Access Point, dipakai WIFI_FORCE_AP, atau fallback saat semua preset
 // gagal (guardrail: ESP32 tidak boleh unreachable). Bertahan sampai reboot,
 // supaya koneksi klien stabil (AP+STA scan bikin channel loncat, klien drop).
 void startAP(const char* why) {
