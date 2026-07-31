@@ -60,3 +60,6 @@ studio/node_modules/
 onshape/*.zip
 onshape/*.obj
 onshape/*.mtl
+
+# PlatformIO (build firmware ESP32)
+firmware/**/.pio/
