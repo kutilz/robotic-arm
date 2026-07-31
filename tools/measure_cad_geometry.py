@@ -11,16 +11,28 @@ Cara kerjanya: setiap part di STEP flat Onshape punya transform sendiri. Skrip
 membaca semua CIRCLE dan CYLINDRICAL_SURFACE tiap part, memindahnya ke koordinat
 assembly global, lalu:
 
-  1. mem-fit sumbu putar tiap sendi dari kumpulan lingkaran yang koaksial
+  1. mengelompokkan semua lingkaran yang koaksial jadi kandidat sumbu putar
      (bukan dari bounding box - bbox meleset kalau part-nya tidak simetris),
-  2. menghitung parameter DH dari jarak common normal antar sumbu,
-  3. menguji kriteria Pieper (sumbu J4/J5/J6 berpotongan di satu titik),
-  4. menghitung jumlah pin ring cycloidal dan gigi pulley HTD3M -> rasio reduksi,
-  5. membandingkan semuanya dengan nilai yang sedang dipakai di config.py.
+  2. mengenali sendi mana yang mana lewat tanda-tangan fiturnya,
+  3. menghitung parameter DH dari jarak common normal antar sumbu,
+  4. menguji kriteria Pieper (sumbu J4/J5/J6 berpotongan di satu titik),
+  5. menghitung jumlah pin ring cycloidal dan gigi pulley HTD3M -> rasio reduksi,
+  6. membandingkan semuanya dengan nilai yang sedang dipakai di config.py.
 
-SEED_AXES di bawah cuma tebakan awal supaya fit tahu harus mencari di mana.
-Kalau desain bergeser jauh, perbarui seed-nya; skrip mencetak jumlah lingkaran
-dan simpangan tiap fit, jadi seed yang meleset langsung kelihatan.
+PENTING - pengenalan sendinya TIDAK bergantung pose. Versi pertama skrip ini
+memakai koordinat sumbu hasil ukuran sebelumnya sebagai tebakan awal, lalu
+langsung buta begitu lengan di-ekspor pada pose berbeda (J3-J6 ikut berpindah
+padahal geometrinya sama persis). Sekarang identifikasinya begini:
+
+  - J2/J3/J4 = tiga sumbu yang punya cincin pin roller cycloidal (lubang
+    Ø4-7 mm tersusun melingkar). Jumlah pin dan radius pin-circle-nya melekat
+    di part, jadi tidak berubah oleh pose.
+  - Di antara ketiganya, J2 = yang paling dekat ke sumbu J1, J3 = yang sejajar
+    dengan J2, J4 = sisanya (tegak lurus dan berpotongan dengan J3).
+  - J1 = sumbu dengan part penyumbang terbanyak (tumpukan bearing bola base).
+  - J5 = sumbu yang tegak lurus DAN berpotongan dengan J4, di titik terjauh
+    dari siku. J6 = yang tegak lurus dan berpotongan dengan J5 di titik yang
+    sama. Keduanya murni dari hubungan geometri, bukan dari koordinat hafalan.
 """
 
 from __future__ import annotations
@@ -34,17 +46,15 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 DEFAULT_STEP = REPO / "onshape" / "Testing Assembly.step"
 
-# Tebakan awal sumbu tiap sendi: (arah, satu titik di sumbu), mm, frame CAD.
-SEED_AXES = {
-    "J1": ((0.0, 0.0, 1.0), (-4.50, 0.00, 20.00)),
-    "J2": ((0.0, 1.0, 0.0), (-70.35, 0.00, 64.85)),
-    "J3": ((0.0, 1.0, 0.0), (-54.74, 0.00, 352.42)),
-    "J4": ((0.98707, 0.0, 0.16027), (-118.42, -11.80, 342.08)),
-    "J5": ((0.01283, -0.99679, -0.07903), (-321.25, -11.88, 309.14)),
-    "J6": ((0.20175, -0.07483, 0.97657), (-339.66, -4.82, 220.01)),
-}
-# Radius lingkaran minimum yang dianggap fitur struktural, per sendi (mm).
-SEED_RMIN = {"J1": 8.0, "J2": 8.0, "J3": 8.0, "J4": 8.0, "J5": 2.5, "J6": 2.5}
+# Ambang pengelompokan sumbu.
+CLUSTER_RMIN = 2.0        # lingkaran lebih kecil dari ini dianggap derau (mm)
+CLUSTER_ANG_TOL = 0.5     # dua lingkaran sesumbu kalau arahnya beda < ini (deg)
+CLUSTER_POS_TOL = 0.5     # ... dan kaki tegak lurusnya beda < ini (mm)
+# Pin roller cycloidal: lubang dalam rentang diameter ini, minimal sekian buah,
+# tersusun melingkar terhadap satu sumbu.
+PIN_DIA_RANGE = (4.0, 7.0)
+PIN_MIN_COUNT = 8
+INTERSECT_TOL = 1.0       # dua sumbu dianggap berpotongan kalau < ini (mm)
 
 
 # --------------------------------------------------------------------------
@@ -200,29 +210,158 @@ class Step:
 # --------------------------------------------------------------------------
 # pengukuran
 # --------------------------------------------------------------------------
-def fit_axis(circles, seed_dir, seed_pt, rmin, angtol=1.0, postol=1.0):
-    """Rata-ratakan semua lingkaran yang koaksial dengan sumbu tebakan."""
-    sd = nrm(seed_dir)
-    ca = math.cos(math.radians(angtol))
-    dirs, pts, who, worst = [], [], collections.Counter(), 0.0
+def _canon(z):
+    """Arah sumbu tanpa tanda: dua lingkaran berlawanan hadap tetap sesumbu."""
+    if z[0] < -1e-9 or (abs(z[0]) <= 1e-9 and
+                        (z[1] < -1e-9 or (abs(z[1]) <= 1e-9 and z[2] < 0))):
+        return mul(z, -1)
+    return z
+
+
+def cluster_axes(circles):
+    """Kelompokkan lingkaran koaksial jadi kandidat sumbu.
+
+    Di-bucket dulu berdasarkan arah yang dikuantisasi kasar supaya tidak perlu
+    membandingkan tiap lingkaran dengan tiap cluster (ada ~9k lingkaran).
+    """
+    ca = math.cos(math.radians(CLUSTER_ANG_TOL))
+    step = 0.05                      # kuantisasi arah, jauh lebih kasar dari toleransi
+    buckets = collections.defaultdict(list)
+    out = []
     for label, o, z, r in circles:
-        if r < rmin or abs(dot(z, sd)) < ca:
+        if r < CLUSTER_RMIN:
             continue
-        e = perp_dist(o, sd, seed_pt)
-        if e > postol:
+        zc = _canon(nrm(z))
+        foot = sub(o, mul(zc, dot(o, zc)))
+        key = tuple(int(math.floor(c / step)) for c in zc)
+        hit = None
+        for dx in (-1, 0, 1):
+            for dy in (-1, 0, 1):
+                for dz in (-1, 0, 1):
+                    for cl in buckets.get((key[0] + dx, key[1] + dy, key[2] + dz), ()):
+                        if dot(zc, cl["z"]) > ca and math.dist(foot, cl["foot"]) < CLUSTER_POS_TOL:
+                            hit = cl
+                            break
+                    if hit:
+                        break
+                if hit:
+                    break
+            if hit:
+                break
+        if hit is None:
+            hit = {"z": zc, "foot": foot, "items": [], "parts": collections.Counter()}
+            buckets[key].append(hit)
+            out.append(hit)
+        n = len(hit["items"]) + 1
+        hit["z"] = nrm(tuple((hit["z"][i] * (n - 1) + zc[i]) / n for i in range(3)))
+        hit["foot"] = tuple((hit["foot"][i] * (n - 1) + foot[i]) / n for i in range(3))
+        hit["items"].append((o, r))
+        hit["parts"][label] += 1
+
+    axes = []
+    for cl in out:
+        pts = [o for o, r in cl["items"]]
+        point = tuple(sum(p[i] for p in pts) / len(pts) for i in range(3))
+        axes.append({
+            "dir": cl["z"], "pt": point, "n": len(pts),
+            "parts": dict(cl["parts"]),
+            "radii": sorted({round(r, 2) for o, r in cl["items"]}, reverse=True),
+            "resid": max(perp_dist(p, cl["z"], point) for p in pts),
+        })
+    axes.sort(key=lambda a: -a["n"])
+    return axes
+
+
+def ring_pin_count(axis, circles):
+    """(jumlah pin, Ø pin, R pin-circle) cincin roller cycloidal di sumbu ini.
+
+    None kalau sumbu ini bukan gearbox cycloidal.
+    """
+    groups = count_holes(circles, axis)
+    best = None
+    for (label, dia, pcr), angles in groups.items():
+        if not (PIN_DIA_RANGE[0] <= dia <= PIN_DIA_RANGE[1]):
             continue
-        dirs.append(z if dot(z, sd) > 0 else mul(z, -1))
-        pts.append(o)
-        who[label] += 1
-        worst = max(worst, e)
-    if not dirs:
-        return None
-    n = len(dirs)
-    axis = nrm(tuple(sum(d[i] for d in dirs) / n for i in range(3)))
-    point = tuple(sum(p[i] for p in pts) / n for i in range(3))
-    resid = max(perp_dist(p, axis, point) for p in pts)
-    return {"dir": axis, "pt": point, "n": n, "parts": dict(who),
-            "resid": resid, "seed_off": worst}
+        if len(angles) < PIN_MIN_COUNT:
+            continue
+        if best is None or len(angles) > best[0]:
+            best = (len(angles), dia, pcr, label)
+    return best
+
+
+def identify_joints(axes, circles):
+    """Petakan cluster sumbu -> nama sendi, murni lewat hubungan geometri."""
+    major = [a for a in axes if a["n"] >= 8]
+
+    # J1: sumbu dengan part penyumbang terbanyak (tumpukan bearing bola base).
+    j1 = max(major, key=lambda a: (len(a["parts"]), a["n"]))
+
+    # J2/J3/J4: sumbu yang punya cincin pin roller cycloidal.
+    cyc = []
+    for a in major:
+        if a is j1:
+            continue
+        ring = ring_pin_count(a, circles)
+        if ring:
+            cyc.append((a, ring))
+    if len(cyc) != 3:
+        return None, f"ketemu {len(cyc)} gearbox cycloidal, harusnya 3"
+
+    # J2 = gearbox yang paling dekat ke PANGKAL J1. Ukur jaraknya dari titik
+    # pangkal J1, bukan jarak garis-ke-garis: sumbu J4 kebetulan hampir memotong
+    # perpanjangan sumbu J1 (~12 mm) sehingga jarak garis-ke-garis malah
+    # menobatkan J4 sebagai yang "terdekat".
+    cyc.sort(key=lambda ar: perp_dist(j1["pt"], ar[0]["dir"], ar[0]["pt"]))
+    j2, ring2 = cyc[0]
+    rest = cyc[1:]
+    # J3 sejajar J2 (dua-duanya sumbu pitch); J4 tegak lurus terhadap keduanya.
+    par = [ar for ar in rest if abs(dot(ar[0]["dir"], j2["dir"])) > math.cos(math.radians(5))]
+    if len(par) != 1:
+        return None, "tidak bisa memisahkan J3 (sejajar J2) dari J4"
+    j3, ring3 = par[0]
+    j4, ring4 = [ar for ar in rest if ar[0] is not j3][0]
+
+    # J5: tegak lurus J4, berpotongan dengannya, di titik TERJAUH dari siku
+    # (yang dekat siku itu fitur internal gearbox J4 sendiri).
+    _, elbow, _ = line_distance(j3["dir"], j3["pt"], j4["dir"], j4["pt"])
+    j5 = _perpendicular_partner(j4, major, exclude=(j1, j2, j3, j4),
+                                anchor=elbow, want_far=True)
+    if j5 is None:
+        return None, "sumbu J5 tidak ketemu"
+    _, wc_a, wc_b = line_distance(j4["dir"], j4["pt"], j5["dir"], j5["pt"])
+    wc = tuple((wc_a[i] + wc_b[i]) / 2 for i in range(3))
+    j6 = _perpendicular_partner(j5, major, exclude=(j1, j2, j3, j4, j5),
+                                anchor=wc, want_far=False)
+    if j6 is None:
+        return None, "sumbu J6 tidak ketemu"
+
+    found = {"J1": j1, "J2": j2, "J3": j3, "J4": j4, "J5": j5, "J6": j6}
+    rings = {"J2": ring2, "J3": ring3, "J4": ring4}
+    return (found, rings), None
+
+
+def _perpendicular_partner(axis, candidates, exclude, anchor, want_far):
+    """Sumbu yang tegak lurus & berpotongan dengan `axis`, dipilih berdasarkan
+    jarak titik potongnya dari `anchor` (terjauh atau terdekat)."""
+    best = None
+    for a in candidates:
+        if any(a is e for e in exclude):
+            continue
+        if abs(dot(a["dir"], axis["dir"])) > math.cos(math.radians(85)):
+            continue                                    # tidak tegak lurus
+        dist, c1, _ = line_distance(axis["dir"], axis["pt"], a["dir"], a["pt"])
+        if c1 is None or dist > INTERSECT_TOL:
+            continue
+        d = math.dist(c1, anchor)
+        if want_far:
+            if d < 50.0:                                # masih di dalam gearbox
+                continue
+            score = -d
+        else:
+            score = d
+        if best is None or score < best[0]:
+            best = (score, a)
+    return best[1] if best else None
 
 
 def count_holes(circles, axis, rmin_from_axis=8.0):
@@ -270,24 +409,24 @@ def main(argv):
             circles.append((label, o, z, r))
     print(f"{len(circles)} lingkaran dari {len(step.instances())} instance part\n")
 
-    axes = {}
     print("=" * 74)
-    print("SUMBU SENDI (frame global CAD, mm)")
+    print("SUMBU SENDI (frame global CAD, mm) - dikenali dari fitur, bukan pose")
     print("=" * 74)
-    for name, (sd, sp) in SEED_AXES.items():
-        a = fit_axis(circles, sd, sp, SEED_RMIN[name])
-        axes[name] = a
-        if a is None:
-            print(f"{name}: TIDAK KETEMU - perbarui SEED_AXES")
-            continue
+    candidates = cluster_axes(circles)
+    result, err = identify_joints(candidates, circles)
+    if result is None:
+        print(f"GAGAL mengenali sendi: {err}")
+        print(f"({len(candidates)} kandidat sumbu terkumpul; "
+              "kalau desain berubah drastis, tinjau ambang di bagian atas file)")
+        return 1
+    axes, rings = result
+    for name in ("J1", "J2", "J3", "J4", "J5", "J6"):
+        a = axes[name]
         d, p = a["dir"], a["pt"]
         print(f"{name}: arah=({d[0]:9.6f},{d[1]:9.6f},{d[2]:9.6f})")
         print(f"    lewat=({p[0]:9.3f},{p[1]:9.3f},{p[2]:9.3f})  "
               f"n={a['n']:4d} lingkaran, simpangan maks {a['resid']:.4f} mm")
         print(f"    part: {', '.join(sorted(a['parts']))}")
-
-    if not all(axes.values()):
-        return 1
 
     print()
     print("=" * 74)
@@ -343,14 +482,9 @@ def main(argv):
     print("RASIO REDUKSI")
     print("=" * 74)
     for name in ("J2", "J3", "J4"):
-        groups = count_holes(circles, axes[name])
-        # pin roller cycloidal: lubang Ø4-7 mm yang jumlahnya paling banyak
-        best = max(((len(v), k) for k, v in groups.items()
-                    if 4.0 <= k[1] <= 7.0 and len(v) >= 5), default=None)
-        if best:
-            cnt, (label, dia, pcr) = best
-            print(f"  {name} cycloidal: {cnt:3d} pin Ø{dia:.1f} mm di pin-circle "
-                  f"R{pcr:.1f} mm -> reduksi 1:{cnt} ({label})")
+        cnt, dia, pcr, label = rings[name]
+        print(f"  {name} cycloidal: {cnt:3d} pin Ø{dia:.1f} mm di pin-circle "
+              f"R{pcr:.1f} mm -> reduksi 1:{cnt} ({label})")
     print("  pulley HTD3M (radius ujung gigi -> perkiraan jumlah gigi):")
     for label in ("Input Pulley", "Stage 2 Pulley", "Output Pulley",
                   "Motor Pulley", "Driven Pulley"):
@@ -361,6 +495,26 @@ def main(argv):
             teeth = ", ".join(f"{htd3m_teeth(r):.1f}T (r={r:.2f})"
                               for r in sorted(tips, reverse=True))
             print(f"    {label:<16} {teeth}")
+
+    print()
+    print("=" * 74)
+    print("AKTUATOR TERPASANG DI ASSEMBLY")
+    print("=" * 74)
+    actuators = collections.Counter()
+    for label, frame, geo in step.instances():
+        if re.search(r"nema|mg\d|servo|17hs", label, re.I):
+            actuators[label] += 1
+    if actuators:
+        for label, n in sorted(actuators.items()):
+            print(f"  {n}x  {label}")
+    else:
+        print("  (tidak ada part bernama motor/servo - kemungkinan belum diberi "
+              "nama di Onshape, atau di-hide saat export)")
+    unnamed = sum(1 for label, f, g in step.instances()
+                  if re.fullmatch(r"Part \d+", label))
+    if unnamed:
+        print(f"  catatan: {unnamed} instance masih bernama generik 'Part N'. "
+              "Beri nama di Onshape supaya terbaca di sini.")
 
     print()
     print("=" * 74)
