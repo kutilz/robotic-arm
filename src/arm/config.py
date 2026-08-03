@@ -1,15 +1,21 @@
 """Parameter fisik lengan robot 6-DOF.
 
 Geometri (tabel DH, panjang link, offset) DIUKUR LANGSUNG dari file STEP
-assembly CAD (`Testing Assembly.step`; koordinat global CAD, Z ke atas, satuan
-mm dikonversi ke m di sini). Rasio reduksi dihitung dari jumlah pin ring
+assembly CAD (`Main Assembly (Complete).step`; koordinat global CAD, Z ke atas,
+satuan mm dikonversi ke m di sini). Rasio reduksi dihitung dari jumlah pin ring
 cycloidal dan jumlah gigi pulley di STEP. Faktor sizing dan model massa
 mengikuti dokumen arsitektur
 (`docs/research/arsitektur_final_robotic_arm_6dof.md`).
 
-Angka geometri terakhir di-rebase 2026-07-30 ke assembly CAD FINAL (lengan
-sudah tercetak penuh, tinggal rakit). Jalankan `python tools/measure_cad_geometry.py`
-untuk mengukur ulang dari STEP kalau desain berubah lagi.
+Angka geometri terakhir di-rebase 2026-08-03 ke assembly CAD FINAL
+`Main Assembly (Complete)` (94 part, penamaan jelas + mate connector lengkap).
+Jalankan `python tools/measure_cad_geometry.py "onshape/Main Assembly (Complete).step"`
+untuk mengukur ulang dari STEP kalau desain berubah lagi; bagian akhir
+keluarannya membandingkan hasil ukur dengan angka di file ini.
+
+Angka di sini harus sama dengan `studio/src/model/cadRig.js`, yang mengukur
+rakitan yang sama lewat jalur berbeda (fit mesh GLB, bukan lingkaran STEP).
+Per rev 2026-08-03 kedua jalur cocok dalam 0.25 mm di semua besaran.
 
 Aktuator FINAL (dikonfirmasi user 2026-07-27):
     J1, J3, J4 : stepper 17HS2401  (holding 0.45 N.m, 1.7 A)
@@ -53,20 +59,21 @@ SAFETY_FACTOR = 2.5             # TARGET faktor dinamis dokumen (lihat catatan J
 # `tools/measure_cad_geometry.py`: sumbu sendi di-fit dari pusat lingkaran
 # bearing/pin di STEP, bukan dari bounding box.
 #
-# Sumbu hasil fit (frame global CAD, mm):
-#   J1 vertikal lewat (X=-4.50, Y=0)
-#   J2 sejajar +Y lewat (X=-70.35, Z=64.84)
-#   J3 sejajar +Y lewat (X=-54.74, Z=352.42)
-#   J4 arah (0.98707, 0, 0.16027) lewat (X=-118.42, Y=-11.80, Z=342.08)
-#   J5 arah (0.01283,-0.99679,-0.07903) lewat (-321.25,-11.88, 309.14)
-#   J6 arah (0.20175,-0.07483, 0.97657) lewat (-339.66, -4.82, 220.01)
+# Sumbu hasil fit (frame global CAD, mm), rev 2026-08-03:
+#   J1 arah (0, 0, 1)                    lewat (   0.00,   0.00,  42.31)
+#   J2 arah (0, 1, 0)                    lewat ( -65.85, -65.29,  72.80)
+#   J3 arah (0, 1, 0)                    lewat ( -65.61, -73.03, 360.80)
+#   J4 arah ( 0.000847, 0, 1)            lewat ( -65.55, -12.46, 425.17)
+#   J5 arah ( 0.998615,-0.052600,-0.0008) lewat (-65.30, -12.46, 630.56)
+#   J6 arah ( 0.001923, 0.052572,-0.9986) lewat (-65.70, -17.25, 721.72)
+#   wrist center = (-65.301, -12.463, 630.562)
 #
 #   i | d (mm) | a (mm) | alpha | sumber
-#   1 |  64.84 |  65.85 |  +90  | d1 = tinggi J1->J2, a1 = offset lateral X J1->J2
+#   1 |  72.80 |  65.85 |  +90  | d1 = tinggi J1->J2, a1 = offset lateral X J1->J2
 #   2 |   0    | 288.00 |   0   | a2 = upper arm J2->J3 (common normal, 2 sumbu //Y)
-#   3 | -11.80 |   0.00 |  -90  | a3 = 0: sumbu J3 & J4 BERPOTONGAN (dulu 50 mm);
+#   3 | -12.46 |   0.00 |  -90  | a3 = 0: sumbu J3 & J4 BERPOTONGAN (dulu 50 mm);
 #     |        |        |       | d3 = geseran lateral Y bidang forearm vs base
-#   4 | 270.00 |   0    |  +90  | d4 = forearm, dari titik potong J3xJ4 ke wrist center
+#   4 | 269.76 |   0    |  +90  | d4 = forearm, dari titik potong J3xJ4 ke wrist center
 #   5 |   0    |   0    |  -90  | J4/J5/J6 concurrent (lihat CATATAN PIEPER)
 #   6 |  90.55 |   0    |   0   | d6 = wrist center -> permukaan flange gripper
 #
@@ -75,18 +82,46 @@ SAFETY_FACTOR = 2.5             # TARGET faktor dinamis dokumen (lihat catatan J
 # berpotongan di satu titik (wrist center) -> Pieper terpenuhi di CAD.
 #
 # d6 = jarak ke PERMUKAAN FLANGE gripper (lingkaran Ø50 terukur), bukan ke
-# titik cengkeram. Badan gripper masih menjulur ~84 mm lagi di luar flange.
-D1_BASE = 0.06484            # J1 -> J2 arah vertikal (d1)
+# titik cengkeram. Badan gripper masih menjulur ~84 mm lagi di luar flange,
+# dan sisa itu dimodelkan terpisah lewat TOOL_TCP_FROM_FLANGE di bawah.
+D1_BASE = 0.07280            # J1 -> J2 arah vertikal (d1)
 A1_SHOULDER_OFFSET = 0.06585  # offset lateral X J1 -> J2 (a1)
 A2_UPPER_ARM = 0.28800       # J2 -> J3 (a2), panjang upper arm
 A3_ELBOW_OFFSET = 0.0        # a3 = 0: sumbu J3 dan J4 berpotongan di CAD FINAL
-D3_ELBOW_LATERAL = -0.0118   # d3, geseran lateral bidang forearm vs bidang base
-D4_FOREARM = 0.27000         # panjang forearm (d4), TERUKUR CAD
-D6_WRIST_TCP = 0.09055       # wrist-center -> flange gripper (d6), TERUKUR CAD
+D3_ELBOW_LATERAL = -0.012463  # d3, geseran lateral bidang forearm vs bidang base
+D4_FOREARM = 0.269762        # panjang forearm (d4), TERUKUR CAD
+D6_WRIST_TCP = 0.09055       # wrist-center -> muka flange gripper (d6), TERUKUR CAD
 # Dulu parameter tambal (0.060) karena d3 dipaksa 0 di tabel DH. Sekarang
 # geseran lateralnya dimodelkan langsung lewat D3_ELBOW_LATERAL, jadi nilai
 # ini cuma besarannya saja - jangan dipakai lagi untuk mengoreksi hasil DH.
 LATERAL_Y_OFFSET = abs(D3_ELBOW_LATERAL)
+
+# --- Frame tool: flange -> TCP -------------------------------------------
+# Tabel DH BERHENTI DI MUKA FLANGE, dan gripper diperlakukan sebagai tool yang
+# dipasang di atasnya. Alasannya bukan kerapian: gripper itu bagian yang bisa
+# diganti. Kalau d6 menelan gripper, tiap ganti gripper harus mengubah tabel
+# DH, firmware, dan digital twin sekaligus. Dengan DH berhenti di flange, ganti
+# gripper cuma menyentuh satu transform di bawah ini. Itu juga sebabnya tiap
+# controller robot industri punya tool frame terpisah.
+#
+# Dinyatakan di frame J6: origin = pusat pergelangan, z' = sumbu J6,
+# x' = sumbu J5, y' = z' x x'. Sama persis dengan CAD_TCP_J6 di
+# studio/src/model/cadRig.js, yang mengukur dari PUSAT PERGELANGAN:
+#   CAD_TCP_J6 = (-0.80, 15.74, 174.23) mm
+# Komponen z' di bawah = 174.23 - 90.55 = 83.68 mm, yaitu sisa julur gripper
+# di luar muka flange. Dua komponen lainnya memang offset lateral, jadi TCP
+# tidak berada di sumbu J6 dan tidak boleh diwakili satu skalar `along` saja.
+TOOL_TCP_FROM_FLANGE = (-0.00080, 0.01574, 0.08368)  # (x', y', z') meter
+
+# Jarak lurus pusat pergelangan -> TCP (ujung wedge jaw saat tertutup). Ini
+# yang dipakai statika sebagai lengan momen payload, BUKAN d6. Endpoint d6
+# urusan pembukuan kinematika; letak massa payload urusan statika, dan
+# keduanya bebas satu sama lain.
+WRIST_TO_TCP = math.dist(
+    (0.0, 0.0, 0.0),
+    (TOOL_TCP_FROM_FLANGE[0], TOOL_TCP_FROM_FLANGE[1],
+     TOOL_TCP_FROM_FLANGE[2] + D6_WRIST_TCP),
+)
 
 # Alias kompatibilitas panjang link (dipakai kode lama / studio).
 UPPER_ARM_LEN = A2_UPPER_ARM
@@ -94,12 +129,17 @@ FOREARM_LEN = D4_FOREARM
 WRIST_LEN = D6_WRIST_TCP
 BASE_HEIGHT = D1_BASE
 
-# Jangkauan maksimum dari sumbu J2 saat lengan terentang penuh:
-#   a2 + sqrt(a3^2 + d4^2) + d6 = 0.6486 m.
-# NAIK dari 0.604 m: forearm CAD final 270 mm (dulu diasumsikan 220 mm) dan
-# offset siku a3 50 mm hilang. Target lama dokumen riset 0.60 m terlampaui ~8%.
+# Jangkauan maksimum dari sumbu J2 saat lengan terentang penuh. Ada DUA angka
+# dan keduanya dipakai di tempat berbeda, jadi jangan dicampur:
+#   REACH_FROM_J2     ke MUKA FLANGE, a2 + sqrt(a3^2 + d4^2) + d6 = 0.6483 m
+#   REACH_FROM_J2_TCP ke TCP ujung jaw, memakai WRIST_TO_TCP      = 0.7325 m
+# Angka pertama batas rantai DH (yang dipakai IK); angka kedua yang dilihat
+# orang sebagai "jangkauan lengan" dan yang muncul di gambar lengan-dimensi.
+# Keduanya NAIK dari 0.604 m di dokumen riset lama: forearm CAD final 269.8 mm
+# (dulu diasumsikan 220 mm) dan offset siku a3 50 mm ternyata tidak ada.
 REACH_FROM_J2 = A2_UPPER_ARM + math.hypot(A3_ELBOW_OFFSET, D4_FOREARM) + D6_WRIST_TCP
-TOTAL_REACH = REACH_FROM_J2  # alias target jangkauan
+REACH_FROM_J2_TCP = A2_UPPER_ARM + math.hypot(A3_ELBOW_OFFSET, D4_FOREARM) + WRIST_TO_TCP
+TOTAL_REACH = REACH_FROM_J2  # alias target jangkauan (rantai DH, ke flange)
 
 
 @dataclass(frozen=True)
@@ -138,7 +178,12 @@ MASSES: list[PointMass] = [
     PointMass("j4_cycloidal", 0.10, _ELBOW_FROM_J2 + 0.0435 * D4_FOREARM),         #  10/230
     PointMass("forearm_link", 0.12, _ELBOW_FROM_J2 + 0.5000 * D4_FOREARM),         # 115/230
     PointMass("wrist_cluster_ee", 0.25, _ELBOW_FROM_J2 + 1.0870 * D4_FOREARM),     # 250/230
-    PointMass("payload", 0.20, _WRIST_FROM_J2 + D6_WRIST_TCP),       # di flange
+    # Payload duduk di TCP (ujung wedge jaw), bukan di muka flange. Benda yang
+    # dicengkeram memang ada di ujung jaw, jadi lengan momennya WRIST_TO_TCP.
+    # Ini keputusan STATIKA dan sengaja tidak ikut endpoint d6, yang cuma
+    # pembukuan kinematika. Efeknya: lengan momen J2 648.3 -> 732.1 mm dan
+    # tau_J2 naik sekitar 3 persen, tidak mengubah pemilihan motor mana pun.
+    PointMass("payload", 0.20, _WRIST_FROM_J2 + WRIST_TO_TCP),
 ]
 
 # Sendi pitch memikul momen gravitasi; nilainya = posisi sumbu dari J2 (m).

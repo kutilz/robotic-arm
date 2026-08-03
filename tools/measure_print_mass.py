@@ -71,9 +71,16 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "tools"))
+sys.path.insert(0, str(REPO / "src"))
 import measure_cad_geometry as M  # noqa: E402  (dipakai untuk parser STEP)
+from arm import config as C  # noqa: E402  (satu-satunya sumber geometri)
 
 DEFAULT_3MF = REPO / "onshape" / "3d print robot arm.3mf"
+# JANGAN ganti ke "Main Assembly (Complete).step". Berkas 3mf di atas di-slice
+# dari export "Testing Assembly", dan pemasangan part 3mf ke instance STEP
+# dilakukan lewat NAMA. Rakitan final menamai ulang banyak part, sehingga
+# hanya 31 dari 74 objek yang berpasangan dan tiga grup distal jadi kosong.
+# Keduanya rakitan fisik yang sama; yang berbeda cuma penamaan dan pose export.
 DEFAULT_STEP = REPO / "onshape" / "Testing Assembly.step"
 # Total filament MODEL (bukan termasuk support) seluruh plate, dari Bambu Studio.
 # Support terukur 2.83 g dari 1057.20 g total, yaitu 0.27%, jadi diabaikan.
@@ -108,12 +115,17 @@ DOWEL_COUNT = {"J2": 30 + 6, "J3": 10 + 6, "J4": 15 + 6}  # pin ring + pin outpu
 FALLBACK_RHO = 1.26
 FALLBACK_INFILL = 0.15
 
-# Sumbu sendi, koordinat global CAD (mm). Sumber: src/arm/config.py baris 78-84,
-# yang diukur oleh tools/measure_cad_geometry.py.
+# Sumbu sendi dalam koordinat global export "Testing Assembly" (mm). HARUS
+# sepose dengan DEFAULT_STEP di atas, karena dipakai untuk memproyeksikan
+# centroid part dari STEP yang sama ke sepanjang lengan. Jangan diganti dengan
+# koordinat rakitan final: itu export lain dengan pose lain, dan mencampur
+# centroid pose lama dengan sumbu pose baru menghasilkan lengan momen yang
+# tidak berarti apa-apa.
 J2P = (-70.35, 0.0, 64.84)
 J3P = (-54.74, 0.0, 352.42)
 J5P = (-321.25, -11.88, 309.14)
-D6_FLANGE = 90.55  # wrist center -> permukaan flange gripper (mm)
+D6_FLANGE = C.D6_WRIST_TCP * 1000     # wrist center -> muka flange gripper (mm)
+WRIST_TO_TCP = C.WRIST_TO_TCP * 1000  # wrist center -> TCP ujung jaw (mm)
 PAYLOAD_KG = 0.20
 
 # Ambang selisih ukuran mesh-cetak vs STEP yang masih dianggap pasangan sah.
@@ -436,7 +448,11 @@ def main(argv=None):
         g = {"J2": "U", "J3": "E", "J4": "J4"}[j]
         items.append((f"dowel {j} ({n}x)", n * DOWEL_G / 1000.0, s, g))
 
-    items.append(("payload", PAYLOAD_KG, A2 + D4 + D6_FLANGE, "W"))
+    # Payload duduk di TCP (ujung wedge jaw), bukan di muka flange: benda yang
+    # dicengkeram memang ada di ujung rahang. Selaras dengan MASSES di
+    # src/arm/config.py. Endpoint d6 sendiri tetap berhenti di flange, itu
+    # urusan pembukuan kinematika dan tidak menentukan letak massa.
+    items.append(("payload", PAYLOAD_KG, A2 + D4 + WRIST_TO_TCP, "W"))
 
     tau2 = sum(m * GRAVITY * s / 1000 for _, m, s, _ in items)
     tau3 = sum(m * GRAVITY * (s - A2) / 1000

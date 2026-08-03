@@ -14,12 +14,19 @@ from arm.kinematics import reach_at
 
 # Torsi statik gravitasi worst-case (lengan horizontal) dari model massa lumped
 # di config.py, dengan sumbu sendi geometri DH terukur CAD.
-# Naik dari (4.79, 1.38, 0.23) setelah geometri di-rebase ke CAD final
-# 2026-07-30: lengan jadi lebih panjang (a2 288, d4 270, reach 649 mm) sehingga
-# semua lengan momen ikut memanjang. Massa kg-nya sendiri belum berubah.
+# Riwayat: (4.79, 1.38, 0.23) dokumen riset -> (5.11, 1.68, 0.24) rebase CAD
+# 2026-07-30 -> nilai sekarang, rebase CAD 2026-08-03.
+#
+# Perubahan terakhir datang dari DUA hal yang terpisah:
+#   1. geometri: d1 64.84 -> 72.80 mm dan d4 270.00 -> 269.76 mm (kecil),
+#   2. payload dipindah dari muka flange ke TCP ujung jaw, jadi lengan momennya
+#      648.3 -> 732.7 mm dari J2.
+# J2 dan J3 cuma naik ~3 persen karena payload 0.2 kg kecil dibanding massa
+# lengan. J5 melonjak 67 persen karena bagi J5 justru payload yang dominan:
+# lengan momennya sendiri ikut naik dari 90.55 mm (flange) ke 174.94 mm (TCP).
 @pytest.mark.parametrize(
     "joint, expected_nm",
-    [("J2", 5.11), ("J3", 1.68), ("J5", 0.24)],
+    [("J2", 5.28), ("J3", 1.84), ("J5", 0.40)],
 )
 def test_static_torque_matches_research(joint, expected_nm):
     assert torque.static_torque(joint) == pytest.approx(expected_nm, abs=0.05)
@@ -31,9 +38,9 @@ def test_roll_yaw_joints_have_zero_gravity_torque():
 
 
 def test_required_output_applies_safety_factor():
-    # J2: 5.11 * 2.5 ~= 12.8 N.m. Dokumen riset menulis ~12 N.m untuk lengan
-    # 600 mm; naik ke ~12.8 karena reach CAD final 649 mm.
-    assert torque.required_output_torque("J2") == pytest.approx(12.8, abs=0.5)
+    # J2: 5.28 * 2.5 ~= 13.2 N.m. Dokumen riset menulis ~12 N.m untuk lengan
+    # 600 mm; naik karena reach CAD final 648 mm ke flange (732 mm ke TCP).
+    assert torque.required_output_torque("J2") == pytest.approx(13.2, abs=0.5)
 
 
 def test_shoulder_is_direct_cycloidal_single_motor():
@@ -92,11 +99,30 @@ def test_wrist_roll_and_end_roll_clear_margin():
 def test_forward_kinematics_home_pose_matches_cad_dh():
     # Pose nol DH (upper arm +X, forearm +Z): hasil rantai DH terukur CAD.
     # Menjaga agar offset bahu a1 dan geseran lateral siku d3 tidak hilang lagi
-    # dari tabel. Komponen y = 0.0118 m persis d3 (dulu 0 karena d3 dipaksa nol).
+    # dari tabel. Komponen y = 0.012463 m persis d3 (dulu 0 karena d3 dipaksa
+    # nol). Titik ini berhenti di MUKA FLANGE, bukan di TCP: rantai DH memang
+    # berakhir di situ dan sisanya urusan TOOL_TCP_FROM_FLANGE.
     from arm.kinematics import end_effector_position
 
     pos = end_effector_position([0, 0, 0, 0, 0, 0])
-    assert list(pos) == pytest.approx([0.35385, 0.0118, 0.42539], abs=1e-3)
+    assert list(pos) == pytest.approx([0.35385, 0.012463, 0.433112], abs=1e-3)
+
+
+def test_tool_frame_is_separate_from_dh_chain():
+    # Rantai DH berhenti di muka flange (d6) dan gripper dimodelkan sebagai
+    # tool di atasnya. Kalau suatu saat ada yang menelan gripper ke dalam d6,
+    # tabel DH, firmware, dan digital twin harus diubah bersamaan tiap ganti
+    # gripper - persis yang dihindari pemisahan ini.
+    assert C.D6_WRIST_TCP == pytest.approx(0.09055, abs=1e-5)
+    # Jarak lurus pusat pergelangan -> TCP harus cocok dengan CAD_TCP_J6 di
+    # studio/src/model/cadRig.js, yang mengukur rakitan yang sama lewat fit
+    # mesh GLB, bukan lingkaran STEP. Ini pengait antara sisi Python dan JS.
+    assert C.WRIST_TO_TCP == pytest.approx(0.174941, abs=5e-5)
+    assert C.REACH_FROM_J2_TCP == pytest.approx(0.732703, abs=5e-5)
+    # TCP tidak berada di sumbu J6: ada offset lateral 15.74 mm, jadi jarak
+    # lurusnya lebih besar daripada komponen sepanjang sumbu saja.
+    sepanjang_sumbu = C.D6_WRIST_TCP + C.TOOL_TCP_FROM_FLANGE[2]
+    assert C.WRIST_TO_TCP > sepanjang_sumbu
 
 
 def test_elbow_axes_intersect_no_perpendicular_offset():

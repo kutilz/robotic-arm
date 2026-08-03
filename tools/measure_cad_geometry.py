@@ -307,25 +307,47 @@ def identify_joints(axes, circles):
     if len(cyc) != 3:
         return None, f"ketemu {len(cyc)} gearbox cycloidal, harusnya 3"
 
-    # J2 = gearbox yang paling dekat ke PANGKAL J1. Ukur jaraknya dari titik
-    # pangkal J1, bukan jarak garis-ke-garis: sumbu J4 kebetulan hampir memotong
-    # perpanjangan sumbu J1 (~12 mm) sehingga jarak garis-ke-garis malah
-    # menobatkan J4 sebagai yang "terdekat".
-    cyc.sort(key=lambda ar: perp_dist(j1["pt"], ar[0]["dir"], ar[0]["pt"]))
+    # J2 = gearbox yang paling dekat ke pangkal J1, diukur TITIK ke TITIK antar
+    # centroid cincin lingkaran, bukan titik-ke-garis.
+    #
+    # Jangan pakai perp_dist di sini. perp_dist membuang komponen yang sejajar
+    # sumbu, dan sumbu J4 hampir sejajar J1 (dua-duanya tegak), jadi ~380 mm
+    # beda tinggi J1 ke J4 ikut terbuang dan yang tersisa cuma simpangan
+    # mendatar 67 mm. Akibatnya J4 menang atas J2 (73 mm) dan seluruh
+    # identifikasi setelahnya runtuh. Centroid tiap cluster itu titik fisik di
+    # badan gearbox-nya, jadi jarak Euclid antar centroid yang benar dipakai.
+    def dari_pangkal(ar):
+        return math.dist(j1["pt"], ar[0]["pt"])
+
+    cyc.sort(key=dari_pangkal)
+    if dari_pangkal(cyc[1]) < 1.5 * dari_pangkal(cyc[0]):
+        return None, ("J2 tidak bisa dipisahkan dari gearbox berikutnya "
+                      f"({dari_pangkal(cyc[0]):.0f} mm vs {dari_pangkal(cyc[1]):.0f} mm)")
     j2, ring2 = cyc[0]
     rest = cyc[1:]
-    # J3 sejajar J2 (dua-duanya sumbu pitch); J4 tegak lurus terhadap keduanya.
-    par = [ar for ar in rest if abs(dot(ar[0]["dir"], j2["dir"])) > math.cos(math.radians(5))]
-    if len(par) != 1:
-        return None, "tidak bisa memisahkan J3 (sejajar J2) dari J4"
-    j3, ring3 = par[0]
-    j4, ring4 = [ar for ar in rest if ar[0] is not j3][0]
+
+    # J3 vs J4: J3 lebih dekat ke J2 sepanjang rantai. Dipakai jarak centroid,
+    # bukan uji kesejajaran dengan J2 seperti versi sebelumnya: J3 hanya
+    # sejajar J2 kalau siku diekspor tepat di theta3 = 0, padahal skrip ini
+    # justru dijanjikan bebas pose. ASUMSI: siku tidak diekspor terlipat balik
+    # lebih dari ~90 derajat, karena a2 (288 mm) dan d4 (270 mm) hampir sama
+    # panjang sehingga lipatan penuh menarik J4 lebih dekat ke J2 daripada J3.
+    # Kalau itu terjadi, ambiguitasnya dilaporkan, tidak ditebak.
+    rest.sort(key=lambda ar: math.dist(j2["pt"], ar[0]["pt"]))
+    d3, d4_ = (math.dist(j2["pt"], ar[0]["pt"]) for ar in rest)
+    if d4_ < 1.15 * d3:
+        return None, ("J3 dan J4 sama jauh dari J2 "
+                      f"({d3:.0f} mm vs {d4_:.0f} mm); siku kemungkinan diekspor "
+                      "terlipat, export ulang pada pose siku lebih terbuka")
+    j3, ring3 = rest[0]
+    j4, ring4 = rest[1]
 
     # J5: tegak lurus J4, berpotongan dengannya, di titik TERJAUH dari siku
     # (yang dekat siku itu fitur internal gearbox J4 sendiri).
     _, elbow, _ = line_distance(j3["dir"], j3["pt"], j4["dir"], j4["pt"])
     j5 = _perpendicular_partner(j4, major, exclude=(j1, j2, j3, j4),
-                                anchor=elbow, want_far=True)
+                                anchor=elbow, want_far=True,
+                                outward_from=j2["pt"])
     if j5 is None:
         return None, "sumbu J5 tidak ketemu"
     _, wc_a, wc_b = line_distance(j4["dir"], j4["pt"], j5["dir"], j5["pt"])
@@ -340,10 +362,21 @@ def identify_joints(axes, circles):
     return (found, rings), None
 
 
-def _perpendicular_partner(axis, candidates, exclude, anchor, want_far):
+def _perpendicular_partner(axis, candidates, exclude, anchor, want_far,
+                           outward_from=None):
     """Sumbu yang tegak lurus & berpotongan dengan `axis`, dipilih berdasarkan
-    jarak titik potongnya dari `anchor` (terjauh atau terdekat)."""
+    jarak titik potongnya dari `anchor` (terjauh atau terdekat).
+
+    `outward_from` = titik acuan proksimal (mis. centroid gearbox J2). Kalau
+    diisi, titik potong yang TIDAK lebih jauh dari titik itu ketimbang `anchor`
+    langsung dibuang. Tanpa saringan ini `want_far=True` bisa memilih sumbu di
+    sisi yang salah: sumbu J4 tegak dan garis tak berhingganya menembus balik
+    ke daerah base, jadi fitur base yang tegak lurus J4 bisa tampak "paling
+    jauh dari siku" padahal letaknya justru di pangkal lengan, bukan di
+    pergelangan.
+    """
     best = None
+    batas = math.dist(anchor, outward_from) if outward_from is not None else None
     for a in candidates:
         if any(a is e for e in exclude):
             continue
@@ -352,6 +385,8 @@ def _perpendicular_partner(axis, candidates, exclude, anchor, want_far):
         dist, c1, _ = line_distance(axis["dir"], axis["pt"], a["dir"], a["pt"])
         if c1 is None or dist > INTERSECT_TOL:
             continue
+        if batas is not None and math.dist(c1, outward_from) <= batas:
+            continue                                    # di sisi proksimal
         d = math.dist(c1, anchor)
         if want_far:
             if d < 50.0:                                # masih di dalam gearbox

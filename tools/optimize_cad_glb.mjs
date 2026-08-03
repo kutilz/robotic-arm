@@ -31,7 +31,7 @@
    MeshoptDecoder. Kalau pipeline ini diganti, samakan juga cadModel.js.
    ========================================================================== */
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, rmSync, copyFileSync, existsSync, statSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, rmSync, copyFileSync, existsSync, statSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -80,7 +80,9 @@ if (iKeep >= 0) {
   console.log(`--keep: ${daftar.length} nama dipertahankan (${daftar.join(', ')})`);
 }
 
-const positional = args.filter((a, i) => !a.startsWith('--') && i !== iKeep + 1);
+// Tanpa --keep, iKeep = -1, jadi iKeep + 1 = 0 dan filternya akan membuang
+// argumen posisional PERTAMA. Nilai --keep hanya dilewati kalau flagnya ada.
+const positional = args.filter((a, i) => !a.startsWith('--') && (iKeep < 0 || i !== iKeep + 1));
 const input = positional[0];
 const output = resolve(REPO, positional[1] || 'studio/public/main-assembly.glb');
 
@@ -98,15 +100,21 @@ if (!existsSync(src)) {
 const mb = (p) => (statSync(p).size / 1e6).toFixed(2) + ' MB';
 const tmp = mkdtempSync(join(tmpdir(), 'cadglb-'));
 
-/** jalankan satu tahap gltf-transform; keluar kalau gagal. */
-function stage(label, args) {
+/** jalankan satu tahap gltf-transform; keluar kalau gagal.
+    `hasil` = berkas yang wajib ada setelah tahap ini. Status keluar saja tidak
+    cukup: lewat `shell: true` di Windows, npx bisa mengembalikan 0 padahal
+    tahapnya tidak menulis apa apa, dan kegagalannya baru muncul jauh di
+    belakang sebagai ENOENT waktu menyalin hasil akhir. */
+function stage(label, args, hasil) {
   process.stdout.write(`  ${label} ... `);
   // shell:true, jadi argumen berspasi (mis. "Main Assembly (Complete).glb" saat
   // --keep-all memakai path sumber langsung) harus dikutip sendiri.
   const q = args.map((a) => (/[\s()]/.test(a) ? `"${a}"` : a));
   const r = spawnSync('npx', [...CLI, ...q], { shell: true, encoding: 'utf8' });
-  if (r.status !== 0) {
-    console.error(`GAGAL\n${r.stdout || ''}${r.stderr || ''}`);
+  if (r.status !== 0 || (hasil && !existsSync(hasil))) {
+    console.error(`GAGAL (status ${r.status}`
+      + (hasil && !existsSync(hasil) ? ', keluaran tidak ditulis' : '') + ')');
+    console.error(`${r.stdout || ''}${r.stderr || ''}`);
     rmSync(tmp, { recursive: true, force: true });
     process.exit(1);
   }
@@ -167,12 +175,15 @@ console.log(`input : ${src} (${mb(src)})`);
 let first = src;
 if (!keepAll) { dropParts(src, p0); first = p0; }
 else console.log('  drop-parts: dilewati (--keep-all)');
-stage('prune (node kosong + TEXCOORD)   ', ['prune', first, a]);
-stage('weld  (gabung vertex identik)    ', ['weld', a, b]);
-stage('join  (gabung primitive per part)', ['join', b, c, '--keepNamed', 'true']);
+stage('prune (node kosong + TEXCOORD)   ', ['prune', first, a], a);
+stage('weld  (gabung vertex identik)    ', ['weld', a, b], b);
+stage('join  (gabung primitive per part)', ['join', b, c, '--keepNamed', 'true'], c);
 stage('meshopt (kompresi + kuantisasi)  ', ['meshopt', c, d, '--level', 'high',
-  '--quantize-position', '14', '--quantize-normal', '10']);
+  '--quantize-position', '14', '--quantize-normal', '10'], d);
 
+// studio/public/ di-gitignore seluruhnya, jadi di clone baru direktorinya belum
+// tentu ada dan copyFileSync akan gagal dengan ENOENT yang menunjuk ke sumber.
+mkdirSync(dirname(output), { recursive: true });
 copyFileSync(d, output);
 rmSync(tmp, { recursive: true, force: true });
 console.log(`output: ${output} (${mb(output)})`);

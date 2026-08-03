@@ -44,18 +44,20 @@ export const FB_SERVO_POT = 'servo_pot'; // pot internal servo -> ADC1 ESP32
 // drive: belt | cyc | cyc-belt | servo
 // ratio: reduksi total drivetrain FINAL (lihat header).
 // fb/encChan: tipe umpan balik + channel mux TCA9548A (null = tanpa mux).
-// target: torsi output rujukan (N·m) dari src/arm/torque.py. Angka ini dihitung
-// untuk reach J2->TCP 649 mm; rakitan CAD 2026-08-03 mengukur 732 mm, jadi
-// lengan momennya ~13% lebih panjang dan `target` J2/J3 di bawah SUDAH BASI.
+// target: torsi output rujukan (N·m) dari src/arm/torque.py, dihitung ulang
+// 2026-08-03 setelah geometri di-rebase ke rakitan CAD final DAN payload
+// dipindah dari muka flange ke TCP ujung jaw (lengan momen J2 648 -> 733 mm).
+// J5 yang paling berubah: 0,59 -> 1,00 N·m, karena bagi J5 payload-lah yang
+// dominan dan lengan momennya sendiri naik 90,6 -> 174,9 mm.
 // Studio tidak memakainya untuk apa pun (cek torsi di drawer engineering pakai
 // torsi gravitasi live dari MASSES), jadi ini murni catatan; nilainya ikut
 // diperbarui saat src/arm/torque.py dihitung ulang.
 export const JDEF = [
   { id: 'J1', name: 'Base yaw',    kind: 'yaw',   drive: 'belt',     motor: '17HS2401',  ratio: 15, min: -180, max: 180, a: 0, target: 3,     fb: FB_AS5600,    encChan: 0 },
-  { id: 'J2', name: 'Shoulder',    kind: 'pitch', drive: 'cyc',      motor: '17HS6401S', ratio: 30, min: -95,  max: 95,  a: 0, target: 12.78, fb: FB_AS5600,    encChan: 1 },
-  { id: 'J3', name: 'Elbow',       kind: 'pitch', drive: 'cyc-belt', motor: '17HS2401',  ratio: 30, min: -150, max: 150, a: 0, target: 4.19,  fb: FB_AS5600,    encChan: 2 },
+  { id: 'J2', name: 'Shoulder',    kind: 'pitch', drive: 'cyc',      motor: '17HS6401S', ratio: 30, min: -95,  max: 95,  a: 0, target: 13.19, fb: FB_AS5600,    encChan: 1 },
+  { id: 'J3', name: 'Elbow',       kind: 'pitch', drive: 'cyc-belt', motor: '17HS2401',  ratio: 30, min: -150, max: 150, a: 0, target: 4.6,   fb: FB_AS5600,    encChan: 2 },
   { id: 'J4', name: 'Wrist roll',  kind: 'roll',  drive: 'cyc',      motor: '17HS2401',  ratio: 15, min: -180, max: 180, a: 0, target: 1,     fb: FB_AS5600,    encChan: 3 },
-  { id: 'J5', name: 'Wrist pitch', kind: 'pitch', drive: 'servo',    motor: 'MG996R',    ratio: 1,  min: -120, max: 120, a: 0, target: 0.59,  fb: FB_SERVO_POT, encChan: null },
+  { id: 'J5', name: 'Wrist pitch', kind: 'pitch', drive: 'servo',    motor: 'MG996R',    ratio: 1,  min: -120, max: 120, a: 0, target: 1,     fb: FB_SERVO_POT, encChan: null },
   { id: 'J6', name: 'End roll',    kind: 'roll',  drive: 'servo',    motor: 'MG996R',    ratio: 1,  min: -180, max: 180, a: 0, target: 0.3,   fb: FB_SERVO_POT, encChan: null },
 ];
 

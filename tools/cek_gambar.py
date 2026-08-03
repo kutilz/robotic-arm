@@ -36,6 +36,14 @@ from playwright.sync_api import sync_playwright
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from sajikan import REPO, layani, url_gambar  # noqa: E402
 
+# Label gambar penuh karakter di luar cp1252 (theta, mu, tanda derajat, panah).
+# Konsol Windows bawaannya cp1252, jadi tanpa ini satu label ber-theta bikin
+# UnicodeEncodeError dan MEMBATALKAN sisa pemeriksaan berkas lain, bukan cuma
+# merusak satu baris keluaran.
+for _aliran in (sys.stdout, sys.stderr):
+    if hasattr(_aliran, "reconfigure"):
+        _aliran.reconfigure(encoding="utf-8", errors="replace")
+
 # GLB masuk .gitignore, jadi 404-nya wajar di mesin yang belum menjalankan
 # optimize_cad_glb.mjs. Chrome mencatatnya sebagai console.error, padahal itu
 # bukan cacat tata letak: halaman CAD punya jalur cadangan kerangka SVG.
@@ -107,9 +115,15 @@ def cek(pg, path: Path, base: str, simpan: Path | None) -> bool:
     # detik kalau jatuh ke SwiftShader tanpa GPU), dan selama itu kueri selector
     # apa pun tidak terjawab. Menebak "bukan halaman gambar" dari selector yang
     # timeout karena itu salah: index.html dan halaman CAD sama-sama diam.
+    # Bukan kegagalan: index.html ikut kena kalau dipanggil dengan glob
+    # `thesis/figures/*.html`, dan itu pemakaian yang wajar. Dulu ini
+    # mengembalikan False sehingga seluruh proses keluar dengan status 1
+    # walaupun semua gambarnya sebenarnya bersih.
     if 'id="card"' not in path.read_text(encoding="utf-8", errors="ignore"):
-        print("   FATAL: bukan halaman gambar, tidak ada #card")
-        return False
+        print("   LEWAT: bukan halaman gambar (tidak ada #card)")
+        return True
+
+    pg.goto(url_gambar(base, path))
 
     # Tunggu SVG benar-benar ada, bukan 350 ms buta: halaman CAD 3D baru
     # memanggil Fig.build() setelah GLB dimuat dan WebGL selesai merender.
