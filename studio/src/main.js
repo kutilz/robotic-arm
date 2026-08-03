@@ -6,9 +6,10 @@
 import './styles/theme.css';
 import { mount, startLoop } from './core/viewport.js';
 import { STATE } from './config/arm.js';
-import { buildArm } from './model/arm.js';
-import { applyPose, applyExplode } from './model/kinematics.js';
-import { buildInspect, setMode, refreshVisToggles } from './features/inspector.js';
+import { buildRig, applyExplode } from './model/rig.js';
+import { loadCadModel, onCadStatus } from './model/cadModel.js';
+import { applyPose } from './model/kinematics.js';
+import { refreshVisToggles } from './features/viewToggles.js';
 import { buildDataPanel } from './features/dataPanel.js';
 import { initLegend, initStatusCard, updateHud } from './ui/hud.js';
 import { refreshJogEnabled, goHome } from './features/jog.js';
@@ -25,11 +26,13 @@ import { icon } from './ui/icons.js';
 const stage = document.getElementById('stage');
 mount(stage);
 
-// model
-buildArm();
-buildInspect();
+// model: rantai sendi + overlay dibangun dari sumbu terukur, jadi studio sudah
+// bisa dipakai penuh sebelum (atau tanpa) mesh CAD. Mesh-nya dimuat duluan
+// karena CAD adalah tampilan default.
+buildRig();
 initPathPreview();
 initTcpDrag();
+loadCadModel();
 
 // panel-panel floating
 buildScenePanel(document.getElementById('scenePanel'));
@@ -47,8 +50,6 @@ function setEngineering(on) {
   STATE.engineering = on;
   document.documentElement.classList.toggle('eng', on);
   if (engBtnRef) engBtnRef.classList.toggle('on', on);
-  // jangan tinggalkan user di mode offsets/drive saat pill-nya disembunyikan
-  if (!on && STATE.mode !== 'arm') setMode('arm');
 }
 const strip = buildIconStrip(document.getElementById('iconStrip'), () => setEngineering(!STATE.engineering));
 engBtnRef = strip.engBtn;
@@ -95,6 +96,31 @@ window.addEventListener('keydown', (e) => {
   else if (k === 'escape') {
     if (STATE.engineering) setEngineering(false);
     else document.getElementById('legendCard').classList.remove('open');
+  }
+});
+
+/* Banner status CAD. GLB-nya gitignored (1,8 MB) jadi tidak ikut ke remote;
+   di mesin yang belum punya file itu studio tetap jalan sebagai skeleton dan
+   banner ini yang memberi tahu cara membuatnya. */
+const cadBanner = document.createElement('div');
+cadBanner.id = 'cadBanner';
+cadBanner.style.cssText = 'position:absolute;left:50%;top:14px;transform:translateX(-50%);z-index:40;'
+  + 'padding:7px 14px;border-radius:8px;font-size:11.5px;line-height:1.5;pointer-events:none;'
+  + 'background:rgba(8,12,16,.9);border:1px solid var(--line2);color:var(--muted);display:none';
+stage.appendChild(cadBanner);
+onCadStatus((s) => {
+  if (s === 'loading') {
+    cadBanner.style.display = 'block';
+    cadBanner.style.color = 'var(--muted)';
+    cadBanner.textContent = 'memuat mesh CAD (main-assembly.glb, 1,8 MB)...';
+  } else if (s === 'ready') {
+    cadBanner.style.display = 'none';
+  } else if (s === 'missing') {
+    cadBanner.style.display = 'block';
+    cadBanner.style.color = 'var(--warn)';
+    cadBanner.innerHTML = 'mesh CAD belum ada di mesin ini, tampilan jatuh ke <b>skeleton</b>. '
+      + 'Kinematika, jog, IK, dan timeline tetap akurat. Untuk membangunnya: '
+      + '<code>node tools/optimize_cad_glb.mjs "onshape/Main Assembly (Complete).glb"</code>';
   }
 });
 

@@ -21,6 +21,12 @@ benchmarks/data/torque_map.csv
 benchmarks/data/ik_verify.csv
 benchmarks/data/error_model.csv
 
+# Paper pihak ketiga hasil unduhan (63 MB, berhak cipta, dan sekali masuk
+# history git tidak bisa dibuang tanpa rewrite). Dipindah antar device manual.
+# Yang tetap di-track: ekstrak *.txt, ringkasan *.md, dan sumber-url.txt,
+# jadi pekerjaan sitasi tetap bisa jalan tanpa PDF-nya.
+docs/research/literatur-pembanding/**/*.pdf
+
 # Skripsi: file kerja Word/temp (outline .md tetap di-track)
 thesis/*.docx
 thesis/~$*.docx

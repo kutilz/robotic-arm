@@ -11,7 +11,11 @@ import {
 import { setTcpDrag, setTcpMode, getTcpEnabled } from './tcpDrag.js';
 import { DEMOS } from './demos.js';
 import { setShow, getShow } from './pathPreview.js';
-import { addKey, clearKeys } from './timeline.js';
+import { addKey, clearKeys, duration, keyframes, sampleTrajectory, onKeysChange } from './timeline.js';
+import { eePositionsFor } from '../model/kinematics.js';
+import { world } from '../model/rig.js';
+import { THREE } from '../core/viewport.js';
+import { cssVar } from '../core/theme.js';
 import { connect, disconnect, isActive, sendGoto, getUrl, onHwStatus } from '../net/bridge.js';
 import { setPayload } from './dataPanel.js';
 import { buildCalPanel } from './calPanel.js';
@@ -25,6 +29,39 @@ const TABS = [
 ];
 
 let dragTgl = null;
+
+/* Audit lintasan: sampel TCP sepanjang trajektori lalu laporkan titik terendah
+   dan pemakaian jangkauan. Ini yang bikin lintasan "kelewat" kelihatan SEBELUM
+   diputar: sebelum rantai di-rebase ke CAD, beberapa demo lewat di bawah meja
+   dan satu-satunya cara tahu adalah memutarnya sambil melihat. Ambang aman TCP
+   ke grid = 25 mm, sama dengan yang dipakai verify_cad_rig.mjs. */
+const CLEAR_MM = 25;
+function auditHtml() {
+  const n = keyframes().length;
+  if (n < 2) return '<span style="color:var(--dim)">belum ada lintasan. Pilih demo di atas atau rekam keyframe.</span>';
+  const traj = sampleTrajectory(120);
+  const pts = eePositionsFor(traj);
+  if (!pts.length) return '<span style="color:var(--dim)">lintasan kosong.</span>';
+
+  const j2 = world.jointRefs[1].pivot.getWorldPosition(new THREE.Vector3());
+  const maxReach = (world.geo && world.geo.reachFromJ2) || 1;
+  let lowY = Infinity, maxUse = 0;
+  for (const p of pts) {
+    lowY = Math.min(lowY, p.y);
+    maxUse = Math.max(maxUse, p.distanceTo(j2) / maxReach);
+  }
+  const lowCol = lowY < 0 ? cssVar('--over') : lowY < CLEAR_MM ? cssVar('--warn') : cssVar('--ok');
+  const useCol = maxUse > 0.99 ? cssVar('--over') : maxUse > 0.92 ? cssVar('--warn') : cssVar('--ok');
+  const note = lowY < 0
+    ? '<div style="color:var(--over)">TCP menembus meja, lintasan ini tidak bisa dijalankan di hardware.</div>'
+    : lowY < CLEAR_MM
+      ? '<div style="color:var(--warn)">TCP mepet meja, sisakan jarak aman sebelum kirim ke hardware.</div>'
+      : '';
+  return `<span>${n} keyframe · ${duration().toFixed(1)} s</span><br>`
+    + `<span>TCP terendah <b style="color:${lowCol}">${lowY.toFixed(0)}</b> mm</span> · `
+    + `<span>jangkauan maks <b style="color:${useCol}">${(maxUse * 100).toFixed(0)}%</b></span>`
+    + note;
+}
 
 function tgl(parent, label, get, set) {
   const t = document.createElement('div'); t.className = 'tgl' + (get() ? ' on' : '');
@@ -101,6 +138,17 @@ export function buildControlCard(card) {
   bClr.onclick = () => clearKeys();
   kfRow.append(bAdd, bClr);
   bodies.motion.appendChild(kfRow);
+
+  /* ---- audit trajektori ---- */
+  const aCap = document.createElement('div'); aCap.className = 'segRow';
+  aCap.innerHTML = '<span class="cap">cek lintasan</span>';
+  bodies.motion.appendChild(aCap);
+  const audit = document.createElement('div'); audit.className = 'mini';
+  audit.style.cssText = 'line-height:1.7;padding:6px 8px;border-radius:6px;border:1px solid var(--line);';
+  bodies.motion.appendChild(audit);
+  const refreshAudit = () => audit.innerHTML = auditHtml();
+  onKeysChange(refreshAudit);
+  refreshAudit();
 
   /* ---- CAL (komisioning gaya PLC; logika penuh di calPanel.js) ---- */
   buildCalPanel(bodies.cal);

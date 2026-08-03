@@ -13,27 +13,27 @@ di sini.
 
 ## Peta cepat: 1 baris = 1 pin ESP32
 
-| GPIO | Fungsi                       | Nyambung ke                          |
-| ---- | ---------------------------- | ------------------------------------ |
-| 5    | EN stepper (bersama)         | EN semua driver TMC2209 (active-LOW) |
-| 13   | STEP J1                      | STEP driver TMC2209 J1               |
-| 14   | STEP J2                      | STEP driver TMC2209 J2               |
-| 16   | UART RX2 (TMC)               | bus PDN_UART (lihat §2)              |
-| 17   | UART TX2 (TMC)               | bus PDN_UART via resistor 1kΩ        |
-| 18   | Servo PWM J5                 | pin sinyal MG996R J5                 |
-| 19   | Servo PWM J6                 | pin sinyal MG996R J6                 |
-| 21   | I2C SDA                      | SDA bus bersama: TCA9548A + ADS1115  |
-| 22   | I2C SCL                      | SCL bus bersama: TCA9548A + ADS1115  |
-| 23   | DIR J4                       | DIR driver TMC2209 J4                |
-| 25   | STEP J3                      | STEP driver TMC2209 J3               |
-| 26   | STEP J4                      | STEP driver TMC2209 J4               |
-| 27   | DIR J1                       | DIR driver TMC2209 J1                |
-| 32   | DIR J3                       | DIR driver TMC2209 J3                |
-| 33   | DIR J2                       | DIR driver TMC2209 J2                |
-| 34   | (bekas servo feedback J5)    | tidak dipakai lagi, lihat §3         |
-| 35   | (bekas servo feedback J6)    | tidak dipakai lagi, lihat §3         |
-| 36   | HX711 DT (opsional)          | pin DT/DOUT modul HX711 (load cell)  |
-| 4    | HX711 SCK (opsional)         | pin SCK modul HX711                  |
+| GPIO | Fungsi                    | Nyambung ke                          |
+| ---- | ------------------------- | ------------------------------------ |
+| 5    | EN stepper (bersama)      | EN semua driver TMC2209 (active-LOW) |
+| 13   | STEP J1                   | STEP driver TMC2209 J1               |
+| 14   | STEP J2                   | STEP driver TMC2209 J2               |
+| 16   | UART RX2 (TMC)            | bus PDN_UART (lihat §2)              |
+| 17   | UART TX2 (TMC)            | bus PDN_UART via resistor 1kΩ        |
+| 18   | Servo PWM J5              | pin sinyal MG996R J5                 |
+| 19   | Servo PWM J6              | pin sinyal MG996R J6                 |
+| 21   | I2C SDA                   | SDA bus bersama: TCA9548A + ADS1115  |
+| 22   | I2C SCL                   | SCL bus bersama: TCA9548A + ADS1115  |
+| 23   | DIR J4                    | DIR driver TMC2209 J4                |
+| 25   | STEP J3                   | STEP driver TMC2209 J3               |
+| 26   | STEP J4                   | STEP driver TMC2209 J4               |
+| 27   | DIR J1                    | DIR driver TMC2209 J1                |
+| 32   | DIR J3                    | DIR driver TMC2209 J3                |
+| 33   | DIR J2                    | DIR driver TMC2209 J2                |
+| 34   | (bekas servo feedback J5) | tidak dipakai lagi, lihat §3         |
+| 35   | (bekas servo feedback J6) | tidak dipakai lagi, lihat §3         |
+| 36   | HX711 DT (opsional)       | pin DT/DOUT modul HX711 (load cell)  |
+| 4    | HX711 SCK (opsional)      | pin SCK modul HX711                  |
 
 **Hindari:** GPIO 6–11 (flash internal), 0/2/12/15 (strapping, dipakai kalau
 perlu tapi hati-hati), 39 (input-only, tidak dipakai sketch ini). GPIO36
@@ -49,14 +49,14 @@ Satu-satunya MCU. Host WiFi + WebSocket server, generate step pulse via
 hardware RMT/MCPWM (FastAccelStepper), baca semua encoder via I2C, kirim PWM
 servo, dan jadi UART master untuk 4 driver TMC2209.
 
-| Konsumen                  | Pin ESP32                                     | Keterangan                             |
-| ------------------------- | --------------------------------------------- | -------------------------------------- |
-| 4× driver TMC2209         | 13,14,25,26 (STEP), 27,33,32,23 (DIR), 5 (EN) | lihat §2                               |
-| Bus UART TMC2209          | 16 (RX2), 17 (TX2)                            | lihat §2                               |
-| Mux I2C TCA9548A          | 21 (SDA), 22 (SCL)                            | lihat §4                               |
-| ADS1115 (feedback servo)  | 21 (SDA), 22 (SCL)                            | bus I2C yang sama, lihat §3            |
-| 2× servo MG996R (J5/J6)   | 18, 19                                        | lihat §3                               |
-| Laptop/browser (studio)   | - (WiFi)                                      | WebSocket `ws://<ip>:81`, lihat README |
+| Konsumen                 | Pin ESP32                                     | Keterangan                             |
+| ------------------------ | --------------------------------------------- | -------------------------------------- |
+| 4× driver TMC2209        | 13,14,25,26 (STEP), 27,33,32,23 (DIR), 5 (EN) | lihat §2                               |
+| Bus UART TMC2209         | 16 (RX2), 17 (TX2)                            | lihat §2                               |
+| Mux I2C TCA9548A         | 21 (SDA), 22 (SCL)                            | lihat §4                               |
+| ADS1115 (feedback servo) | 21 (SDA), 22 (SCL)                            | bus I2C yang sama, lihat §3            |
+| 2× servo MG996R (J5/J6)  | 18, 19                                        | lihat §3                               |
+| Laptop/browser (studio)  | - (WiFi)                                      | WebSocket `ws://<ip>:81`, lihat README |
 
 Power: ESP32 dari USB 5V (regulator on-board ke 3.3V). **Tidak** mensuplai
 motor stepper maupun servo, itu rail terpisah, lihat §5.
@@ -78,7 +78,7 @@ stealthChop, StallGuard). Step/Dir tetap jalur terpisah per driver.
 | UART RX (driver→ESP32) | GPIO 16 ←                                     | PDN_UART (bus bersama)             |                                                    |
 | Alamat UART            | jumper **MS1/MS2 di modul** (bukan pin ESP32) | -                                  | lihat tabel alamat di bawah                        |
 | Motor output (4 kabel) | -                                             | ke kumparan NEMA17 (§3)            | A+/A-/B+/B-                                        |
-| Power                  | VM eksternal + GND                            | VM & GND tiap driver               | lihat §5, **bukan** dari 3.3V/5V ESP32            |
+| Power                  | VM eksternal + GND                            | VM & GND tiap driver               | lihat §5, **bukan** dari 3.3V/5V ESP32             |
 
 **Alamat UART per driver** (di-set jumper fisik, dibaca firmware saat UART aktif):
 
@@ -137,11 +137,11 @@ TMC2209 pasangannya (bukan ke ESP32).
 
 ### Servo: 2× MG996R (J5, J6) + 1× MG90S (gripper)
 
-| Servo               | Pin PWM (ESP32)     | Feedback posisi        |
-| ------------------- | ------------------- | ---------------------- |
-| J5 Wrist pitch      | GPIO 18             | ADS1115 kanal A0       |
-| J6 End roll         | GPIO 19             | ADS1115 kanal A1       |
-| Gripper (bukan DOF) | belum ditetapkan    | ADS1115 kanal A2       |
+| Servo               | Pin PWM (ESP32)  | Feedback posisi  |
+| ------------------- | ---------------- | ---------------- |
+| J5 Wrist pitch      | GPIO 18          | ADS1115 kanal A0 |
+| J6 End roll         | GPIO 19          | ADS1115 kanal A1 |
+| Gripper (bukan DOF) | belum ditetapkan | ADS1115 kanal A2 |
 
 - PWM 50 Hz standar, pulsa 500–2500 µs (default; bisa dikalibrasi via
   `cal_set servo_us_min/max`).
@@ -157,6 +157,7 @@ TMC2209 pasangannya (bukan ke ESP32).
   ukur.
 
 > **Belum diputuskan / belum dikerjakan.**
+> 
 > 1. Tegangan kerja ADS1115: kalau di-supply 3.3 V, wiper servo 5–6 V tetap
 >    butuh voltage divider. Kalau di-supply 5 V, input aman tanpa divider dan
 >    I2C tetap kompatibel dengan logic 3.3 V, tapi pull-up bus harus tetap ke
@@ -187,12 +188,12 @@ beralamat I2C sama (`0x36`), jadi dipisah lewat mux `TCA9548A` (`0x70`).
 **Per-pin AS5600** (modul breakout biasanya expose 7 pin, cuma 4 yang
 kepake di proyek ini):
 
-| Pin | Dipakai?       | Ke mana / catatan                                                                                                                                                                                                               |
-| --- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| VCC | Ya             | 3.3V, satu rail dengan ESP32 & TCA9548A                                                                                                                                                                                         |
-| GND | Ya             | GND common (§5)                                                                                                                                                                                                                 |
-| SDA | Ya             | ke channel TCA9548A masing-masing (bukan langsung ke GPIO21 ESP32)                                                                                                                                                              |
-| SCL | Ya             | ke channel TCA9548A masing-masing (bukan langsung ke GPIO22 ESP32)                                                                                                                                                              |
+| Pin | Dipakai?       | Ke mana / catatan                                                                                                                                                                                                              |
+| --- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| VCC | Ya             | 3.3V, satu rail dengan ESP32 & TCA9548A                                                                                                                                                                                        |
+| GND | Ya             | GND common (§5)                                                                                                                                                                                                                |
+| SDA | Ya             | ke channel TCA9548A masing-masing (bukan langsung ke GPIO21 ESP32)                                                                                                                                                             |
+| SCL | Ya             | ke channel TCA9548A masing-masing (bukan langsung ke GPIO22 ESP32)                                                                                                                                                             |
 | DIR | Tidak ke ESP32 | tie langsung ke GND (atau VCC untuk kebalik arah) di modulnya sendiri, pilih polaritas hardware. Firmware sudah punya `enc_sign[]` (software) untuk balik arah per joint, jadi cukup tie ke GND dan biarkan software yang atur |
 | OUT | Tidak          | output analog/PWM sudut (alternatif I2C), firmware baca sudut lewat register I2C (`0x0C`), OUT dibiarkan *not connected*                                                                                                       |
 | GPO | Tidak          | pin programming OTP (burn setting permanen ke chip, ireversibel), jangan disolder kecuali sengaja mau burn OTP; biarkan NC                                                                                                     |
@@ -216,7 +217,7 @@ kepake di proyek ini):
 
 | Dari              | Ke            | Catatan                                        |
 | ----------------- | ------------- | ---------------------------------------------- |
-| ESP32 GPIO36      | HX711 DT/DOUT | input-only OK, HX711 men-drive push-pull      |
+| ESP32 GPIO36      | HX711 DT/DOUT | input-only OK, HX711 men-drive push-pull       |
 | ESP32 GPIO4       | HX711 SCK     | bit-bang dari firmware (~10 Hz data ready)     |
 | HX711 VCC         | 3.3V ESP32    | supply 3.3V supaya level DT aman tanpa divider |
 | HX711 E+/E-/A+/A- | load cell     | 4 kabel load cell (merah/hitam/putih/hijau)    |
@@ -229,15 +230,35 @@ konversi gram → Newton → torsi (× lengan tuas) dihitung di studio.
 
 ## 5. Distribusi power & grounding
 
-| Rail                               | Menyuplai                       | Sumber                                                                            |
-| ---------------------------------- | ------------------------------- | --------------------------------------------------------------------------------- |
-| USB 5V → regulator 3.3V            | ESP32, AS5600 ×4, TCA9548A      | USB/adaptor 5V ke ESP32                                                           |
-| VM (sesuai motor, biasanya 12–24V) | 4× driver TMC2209 → coil NEMA17 | catu daya motor terpisah                                                          |
-| 5–6 V servo                        | 2× MG996R (J5, J6)              | catu daya servo terpisah (arus lonjak saat stall, jangan satu rail dengan logic) |
+| Rail                    | Menyuplai                       | Sumber                                                                           |
+| ----------------------- | ------------------------------- | -------------------------------------------------------------------------------- |
+| USB 5V → regulator 3.3V | ESP32, AS5600 ×4, TCA9548A      | USB/adaptor 5V ke ESP32                                                          |
+| VM **24 V 5 A**         | 4× driver TMC2209 → coil NEMA17 | catu daya motor terpisah (perhitungan: ~1,5 A / 36 W)                            |
+| 5–6 V servo             | 2× MG996R (J5, J6)              | catu daya servo terpisah (arus lonjak saat stall, jangan satu rail dengan logic) |
 
 **Wajib:** GND ketiga rail (ESP32, driver/motor, servo) **common**,
 tanpa ground bersama, pembacaan ADC feedback servo dan level sinyal
 STEP/DIR/UART tidak valid meski secara visual "kelihatan nyambung".
+
+### Aturan rail VM 24 V (jangan dilanggar, driver mati tanpa peringatan)
+
+Batas absolut `VM` TMC2209 = **29 V**, jadi di rail 24 V margin transien tinggal
+5 V. Semua kejadian di bawah ini menghasilkan lonjakan sekitar 2× nominal, yaitu
+~48 V, dan tak satu pun memunculkan flag di `DRV_STATUS`:
+
+1. **Nyalakan dan matikan lewat tombol OUTPUT di PSU, jangan lewat colokan.**
+   Menyambung kabel ke sumber yang sudah hidup memicu dering LC pada induktansi
+   kabel dan kapasitor bulk.
+2. **Jangan pernah mencabut atau memasang motor saat power on.** Flyback coil
+   yang terputus lewat body diode ke rail VM.
+3. Kapasitor bulk **470–1000 µF / 50 V** di rail dekat driver, di samping 100 µF
+   low-ESR yang diminta datasheet.
+4. Cek rating kapasitor di modul driver, **wajib ≥35 V**. Modul klon kadang
+   memasang 25 V, itu di luar spec pada rail 24 V.
+5. `VCC_IO` dari **3.3 V ESP32**, jangan dari `5VOUT` driver (mengurangi
+   disipasi regulator internal yang tegangan jatuhnya dobel di 24 V).
+
+Latar dan hitungannya: `docs/research/driver-stepper-tmc2209-vs-drv8825.md` §6.
 
 ---
 

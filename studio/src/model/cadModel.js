@@ -1,81 +1,80 @@
 /* ============================================================================
-   cadModel: muat mesh CAD asli (Testing Assembly.glb, export Onshape) sebagai
-   pengganti visual model parametrik lama.
+   cadModel: memuat mesh CAD (Main Assembly, export Onshape) dan menempelkannya
+   ke rantai sendi yang sudah dibangun rig.js. Mesh CAD adalah tampilan DEFAULT
+   studio; twin parametrik dari primitif sudah dihapus.
 
-   CATATAN penting:
-   - three.js tidak bisa membaca .step; dipakai GLB hasil export Onshape
-     (glTF 2.0) di studio/public/testing-assembly.glb (di-gitignore, ~21 MB).
-   - Model ini STATIS: 67 solid belum dikelompokkan per-sendi, jadi jog/IK/
-     timeline tidak menggerakkannya. Menyalakan CAD menyembunyikan twin
-     parametrik (world.arm) dan sebaliknya, jadi bisa dibolak-balik.
-   - Transform di bawah BELUM diverifikasi render (tidak ada browser saat dibuat).
-     Onshape export GLB dalam meter dan Y-up; studio pakai mm. Kalau posisi/skala/
-     orientasi meleset, cukup ubah konstanta CAD_* ini.
+   Rantai kinematik TIDAK bergantung pada GLB ini: sumbu sendi dihitung dari
+   tabel terukur di cadRig.js, jadi kalau main-assembly.glb belum ada di mesin
+   ini (file-nya gitignored, 1,8 MB, tidak ikut ke remote) studio tetap jalan
+   penuh sebagai tampilan skeleton dan memunculkan banner cara membuatnya.
+
+   Modul ini hanya mengurus pemuatan GLB, banner status, dan toggle tampilan.
+   Data sumbu sendi, peta part ke link, dan matematika rig ada di cadRig.js
+   supaya bisa diverifikasi di Node tanpa WebGL lewat
+   `node studio/tools/verify_cad_rig.mjs`.
    ========================================================================== */
-import { THREE, scene } from '../core/viewport.js';
-import { world } from './arm.js';
-// GLTFLoader di-import dinamis (code-split) supaya hanya dimuat saat CAD dipakai.
+import { STATE } from '../config/arm.js';
+import { world, attachCad, setCadPartsVisible } from './rig.js';
+import { CAD_URL, CAD_PART_N } from './cadRig.js';
+// GLTFLoader + MeshoptDecoder di-import dinamis (code-split) supaya bundel
+// utama tetap ramping.
 
-const CAD_URL = '/testing-assembly.glb';
-const CAD_SCALE = 1000;   // meter (Onshape) -> mm (studio)
-const CAD_ROT = { x: 0, y: 0, z: 0 };  // GLB Onshape umumnya sudah Y-up; nudge bila perlu
-const CAD_POS = { x: 0, y: 0, z: 0 };
-const DROP_TO_GROUND = true;  // geser supaya dasar bbox menyentuh grid y=0
+let status = 'idle';   // idle | loading | ready | missing
+const listeners = new Set();
+/** subscribe status pemuatan CAD: 'loading' | 'ready' | 'missing'. */
+export function onCadStatus(fn) { listeners.add(fn); return () => listeners.delete(fn); }
+function setStatus(s, detail) { status = s; for (const fn of listeners) fn(s, detail); }
+export function getCadStatus() { return status; }
 
-let cadRoot = null;
-let loading = false;
-
-/** Muat GLB sekali (async). onDone(group|null) dipanggil setelah selesai/gagal. */
-export function loadCadModel(onDone) {
-  if (cadRoot) { onDone && onDone(cadRoot); return; }
-  if (loading) { onDone && onDone(null); return; }
-  loading = true;
-  import('three/examples/jsm/loaders/GLTFLoader.js').then(({ GLTFLoader }) => {
-    new GLTFLoader().load(
-      CAD_URL,
-      (gltf) => {
-      const inner = gltf.scene;
-      inner.scale.setScalar(CAD_SCALE);
-      cadRoot = new THREE.Group();
-      cadRoot.name = 'cadModel';
-      cadRoot.rotation.set(CAD_ROT.x, CAD_ROT.y, CAD_ROT.z);
-      cadRoot.position.set(CAD_POS.x, CAD_POS.y, CAD_POS.z);
-      cadRoot.add(inner);
-      if (DROP_TO_GROUND) {
-        const box = new THREE.Box3().setFromObject(cadRoot);
-        if (isFinite(box.min.y)) cadRoot.position.y -= box.min.y;
-      }
-      cadRoot.visible = false;  // twin parametrik tetap tampilan utama sampai di-toggle
-      scene.add(cadRoot);
-      loading = false;
-      onDone && onDone(cadRoot);
-      },
+/** Muat GLB sekali (async). Aman dipanggil berkali-kali: sekali gagal statusnya
+    jadi 'missing' dan tidak dicoba ulang otomatis (refreshVisToggles memanggil
+    setCadVisible tiap kali toggle disentuh), kecuali retry=true. */
+export function loadCadModel(onDone, retry = false) {
+  if (status === 'ready' || status === 'loading') { onDone && onDone(status === 'ready'); return; }
+  if (status === 'missing' && !retry) { onDone && onDone(false); return; }
+  setStatus('loading');
+  Promise.all([
+    import('three/examples/jsm/loaders/GLTFLoader.js'),
+    import('three/examples/jsm/libs/meshopt_decoder.module.js'),
+  ]).then(([{ GLTFLoader }, { MeshoptDecoder }]) => {
+    const loader = new GLTFLoader();
+    loader.setMeshoptDecoder(MeshoptDecoder);  // GLB dikompresi EXT_meshopt_compression
+    loader.load(CAD_URL,
+      (gltf) => { build(gltf); onDone && onDone(true); },
       undefined,
-      (err) => {
-        loading = false;
-        console.warn('[cadModel] gagal memuat GLB; twin parametrik tetap jalan.', err);
-        onDone && onDone(null);
-      },
-    );
+      (err) => { fail('GLB tidak bisa dimuat', err); onDone && onDone(false); });
   }).catch((err) => {
-    loading = false;
-    console.warn('[cadModel] GLTFLoader gagal di-import.', err);
-    onDone && onDone(null);
+    fail('GLTFLoader / MeshoptDecoder gagal di-import', err);
+    onDone && onDone(false);
   });
 }
 
-/** Tampilkan/sembunyikan CAD. Saat CAD tampil, twin parametrik disembunyikan. */
-export function setCadVisible(v) {
-  if (v && !cadRoot) {
-    loadCadModel((r) => { if (r) applyVisibility(true); });
-    return;
+function fail(msg, err) {
+  console.warn(`[cadModel] ${msg}; studio jalan sebagai skeleton.`, err);
+  setStatus('missing', msg);
+}
+
+function build(gltf) {
+  const res = attachCad(gltf.scene);
+
+  if (res.partCount !== CAD_PART_N) {
+    console.warn(`[cadModel] jumlah part ${res.partCount}, diharapkan ${CAD_PART_N}.`
+      + ' GLB dan tabel CAD_PARTS mungkin sudah tidak sinkron.');
   }
-  applyVisibility(v);
+  if (res.warn.length) {
+    console.warn(`[cadModel] ${res.warn.length}/${res.partCount} part tidak cocok di peta link:`, res.warn);
+  }
+
+  setCadPartsVisible(STATE.show.cad);
+  setStatus('ready', res);
 }
 
-function applyVisibility(v) {
-  if (cadRoot) cadRoot.visible = v;
-  if (world.arm) world.arm.visible = !v;  // swap tampilan CAD <-> twin parametrik
+/** Tampilkan/sembunyikan mesh CAD. Skeleton dan overlay tidak ikut disembunyikan
+    karena keduanya memang dipakai bersamaan (mis. x-ray + skeleton). */
+export function setCadVisible(v) {
+  STATE.show.cad = v;
+  if (status === 'ready') { setCadPartsVisible(v); return; }
+  if (v) loadCadModel();
 }
 
-export function isCadLoaded() { return !!cadRoot; }
+export function isCadLoaded() { return world.cadLoaded; }

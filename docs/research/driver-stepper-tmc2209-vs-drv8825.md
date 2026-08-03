@@ -4,7 +4,8 @@ Riset referensi untuk sub-bab perangkat keras aktuator. Fokus: kenapa arus
 terukur selalu kecil, cara set arus yang benar (deterministik, bukan trial and
 error), dan batas fisik yang tidak bisa dilawan dengan software.
 
-Tanggal riset: 2026-07-26. Sumber di bagian akhir.
+Tanggal riset: 2026-07-26. Bagian 6 (pemilihan tegangan supply dan mode kegagalan
+di 24 V) ditambahkan 2026-08-03. Sumber di bagian akhir.
 
 ---
 
@@ -322,18 +323,138 @@ sekitar 570 siklus/s = ~680 RPM; realistis dengan margin torsi sekitar sepertiga
 apa pun setting drivernya.
 
 Rule of thumb industri untuk chopper driver: `V_supply optimal ~= 32 x sqrt(L_mH)`.
-Untuk 17HS6401 itu 32 x sqrt(6.2) = **80 V**, jauh di atas batas 28 V TMC2209.
+Untuk 17HS6401 itu 32 x sqrt(6.2) = **80 V**, jauh di atas batas absolut 29 V
+TMC2209.
 Artinya motor ini memang **inductance-limited** di TMC2209. Ini bukan cacat
 desain, tapi harus disebut eksplisit di skripsi sebagai batasan sistem.
 
 Untungnya J2 punya reduksi 45:1, jadi 200 RPM motor = 4.4 RPM di sendi, lebih
 dari cukup untuk lengan. Kesimpulan yang bisa ditulis: **naikkan supply dari
 12 V ke 24 V** (dua kali lipat kecepatan sebelum torsi drop, dan setengah arus
-supply untuk daya yang sama), jangan lebih.
+supply untuk daya yang sama), jangan lebih. Konsekuensi keandalan dari keputusan
+itu dibahas di bagian 6.
 
 ---
 
-## 6. Prosedur verifikasi deterministik
+## 6. Tegangan supply: kenapa 24 V, dan kenapa 24 V menuntut proteksi
+
+Gambar pendukung: `thesis/figures/gambar-jendela-tegangan-driver.html`.
+
+### 6.1 Jendela tegangan dan margin yang tersisa
+
+Datasheet TMC2209 memberi rentang `VM` **4.75 V sampai 29 V**, dan 29 V adalah
+**batas absolut**, bukan batas kerja yang boleh disentuh terus-menerus.
+
+| Rail | Margin ke 29 V | Sisa setelah drop resistif (17HS6401, I x R = 5.1 V) |
+| --- | --- | --- |
+| 12 V | 17 V | 6.9 V (57%) |
+| 24 V | **5 V** | 18.9 V (79%) |
+
+Dua kolom itu menarik ke arah berlawanan, dan di situlah seluruh keputusannya.
+Rail 12 V aman terhadap transien tapi boros: hampir separuh tegangannya habis
+sebelum sempat mendorong arus. Rail 24 V efisien tapi hanya menyisakan 5 V
+sebelum chip lewat batas absolut.
+
+### 6.2 Empat mekanisme kematian yang aktif di 24 V dan tidak aktif di 12 V
+
+Semua mekanisme di bawah ini menghasilkan tegangan sesaat sekitar **dua kali
+nominal**. Di 12 V hasilnya 24 V, masih di dalam jendela. Di 24 V hasilnya 48 V,
+jauh di luar. Itu sebabnya perpindahan 12 V ke 24 V bisa mematikan driver yang
+sebelumnya bertahun-tahun aman.
+
+| # | Mekanisme | Pemicu di meja kerja | Ada flag peringatan? |
+| --- | --- | --- | --- |
+| 1 | Dering LC saat hot plug | kabel daya dicolok ke PSU yang **sudah** hidup | **Tidak.** Durasi mikrodetik |
+| 2 | Flyback coil | motor dicabut/dicolok saat power on | **Tidak** |
+| 3 | Regenerasi / back-EMF | decel agresif, atau poros diputar tangan | Tidak, kecuali sempat memicu OT |
+| 4 | Kapasitor modul kurang rating | modul klon dengan cap 25 V atau 35 V | Tidak, gagal diam-diam |
+
+**Mekanisme 1 adalah yang paling cocok dengan laporan "mati tanpa peringatan".**
+Induktansi kabel supply dan kapasitor bulk membentuk rangkaian LC. Menyambung
+kabel ke sumber yang sudah hidup adalah eksitasi tangga, dan tanggapan tangga LC
+tanpa redaman adalah `v(t) = V (1 - cos wt)`, puncaknya **2V**.
+
+Nuansa yang penting untuk perancangan: **rasio puncak 2x itu tidak bergantung
+pada nilai L maupun C**, jadi memperbesar kapasitor saja tidak otomatis
+menghapusnya. Yang menentukan puncak sebenarnya adalah rasio redaman
+
+```
+zeta = (R_seri / 2) x sqrt(C / L)
+```
+
+Karena `zeta` naik terhadap akar C, kapasitor besar tetap membantu, tapi hanya
+selama ada resistansi seri (ESR kapasitor plus resistansi kabel). Kapasitor
+low-ESR yang diminta datasheet demi ripple chopper justru **mengurangi** redaman
+ini. Kesimpulan praktisnya: kapasitor bukan solusi utama untuk mekanisme 1,
+**tidak melakukan hot plug adalah solusinya.**
+
+Ada satu mekanisme kelima yang **bukan** penyebab kematian mendadak, tapi tetap
+perlu dicatat: regulator internal 5 V dan 11.5 V diumpan dari `VSA`, dan di modul
+SilentStepStick `VSA` disambung ke `VM`. Menaikkan `VM` ke 24 V melipatgandakan
+tegangan jatuh di regulator itu, jadi disipasinya naik. Datasheet menganjurkan
+`VSA` diberi supply terpisah yang lebih rendah bila `VM` tinggi. Di proyek ini
+bebannya kecil karena `VCC_IO` diambil dari 3.3 V ESP32, bukan dari `5VOUT`,
+sehingga cukup dicatat sebagai alasan tambahan untuk **tidak** menarik `VCC_IO`
+dari driver. Bedanya dengan empat mekanisme di atas: yang ini muncul sebagai
+`otpw` lalu `ot` di `DRV_STATUS`, jadi terbaca lebih dulu di panel diagnostik
+studio.
+
+### 6.3 Kenapa bukan 12 V, dan kenapa bukan tegangan tengah
+
+**Bukan 12 V.** Dari tabel 6.1, drop resistif 5.1 V memakan 43% dari rail 12 V.
+Yang tersisa untuk membalik arus di belitan tinggal 6.9 V, dan itu langsung
+terlihat sebagai torsi yang jatuh lebih awal (bandingkan `t_rise` 878 µs di 12 V
+terhadap 439 µs di 24 V pada bagian 5). Untuk lengan yang memang dituntut kuat,
+menukar torsi demi margin transien adalah pertukaran yang salah arah, apalagi
+mekanisme transiennya bisa dihilangkan lewat prosedur, bukan lewat komponen.
+
+**Bukan tegangan tengah.** Rail 19 V (adaptor laptop) tidak menyelesaikan apa
+pun: dering 2x tetap menghasilkan 38 V, tetap melewati 29 V. Batas amannya ada di
+`VM <= 14.5 V` supaya dering 2x masih di bawah 29 V, dan itu praktis berarti
+kembali ke 12 V. Jadi pilihannya biner: **12 V dengan torsi berkurang, atau 24 V
+dengan prosedur yang disiplin.** Tidak ada jalan tengah yang membeli keduanya.
+
+Perlu ditegaskan karena sering disalahpahami: **TVS diode tidak bisa menolong di
+24 V.** Supaya tidak konduksi di 24 V, tegangan standoff harus di atas 24 V, dan
+tegangan clamping komponen semacam itu selalu jatuh di 38 V sampai 42 V, sudah di
+atas batas absolut 29 V. Tidak ada ruang untuk clamp di rail 24 V dengan chip
+berbatas 29 V.
+
+### 6.4 Proteksi yang dipakai di proyek ini
+
+Diurutkan dari yang paling efektif per rupiah:
+
+1. **Nyalakan dan matikan lewat tombol OUTPUT di bench PSU, jangan lewat
+   colokan.** Menghilangkan mekanisme 1 sepenuhnya, biaya nol. Ini masuk ke
+   prosedur pengujian di Bab III, bukan ke daftar komponen.
+2. **Jangan pernah mencabut atau memasang motor saat power on.** Menghilangkan
+   mekanisme 2. Diperingatkan eksplisit di wiki BIGTREETECH.
+3. **Kapasitor bulk 470 sampai 1000 µF / 50 V dekat driver**, di samping 100 µF
+   low-ESR yang diminta datasheet. Fungsi utamanya menyerap energi regenerasi
+   (mekanisme 3) dan menahan ripple chopper, bukan meredam hot plug.
+4. **Periksa rating kapasitor di modul, wajib minimal 35 V.** Ganti kalau 25 V.
+5. **`VCC_IO` dari 3.3 V ESP32**, tidak dari `5VOUT` driver.
+6. **Ramp deselerasi jangan agresif.** Untungnya reduksi 15:1 sampai 30:1 di
+   lengan ini praktis tidak backdrivable, jadi gravitasi tidak bisa memutar rotor
+   dan mekanisme 3 tinggal menyisakan energi kinetik rotor sendiri yang kecil.
+
+### 6.5 Anggaran daya
+
+Dengan 4 driver stepper pada 1000 sampai 1200 mA RMS dan `R` fasa 3.0 Ω:
+
+```
+P_coil per motor = 2 x I^2 x R = 2 x 1.2^2 x 3.0 = 8.6 W
+I_supply per driver @24 V     ~= 0.36 A
+4 driver                      ~= 1.5 A  (36 W)
+```
+
+PSU **24 V 5 A (120 W)** memberi ruang transien yang lega dan sekaligus menjauh
+dari mode constant current yang jadi salah satu tersangka arus rendah di bagian
+2.3. Servo pergelangan tetap di rail terpisah 5 sampai 6 V.
+
+---
+
+## 7. Prosedur verifikasi deterministik
 
 Urutan ini menggantikan tuning coba-coba. Tiap langkah punya angka yang bisa
 dicek, bukan "rasanya kurang kuat".
@@ -362,7 +483,7 @@ dicek, bukan "rasanya kurang kuat".
 
 ---
 
-## 7. Rekomendasi untuk proyek ini
+## 8. Rekomendasi untuk proyek ini
 
 **Tetap pakai TMC2209, jangan pindah ke DRV8825.** Alasan yang bisa
 dipertanggungjawabkan di sidang:
@@ -385,7 +506,7 @@ Konfigurasi yang disarankan:
 
 | Item | Nilai | Alasan |
 | --- | --- | --- |
-| V_supply | 24 V | 2x headroom kecepatan vs 12 V, masih di bawah batas 28 V |
+| V_supply | 24 V | 2x headroom kecepatan vs 12 V; margin ke batas absolut tinggal 5 V, jadi wajib ikut prosedur bagian 6.4 |
 | `I_scale_analog` | `false` | hilangkan VREF sebagai variabel liar |
 | Mode chopper | spreadCycle (`en_spreadCycle(true)`) | torsi + akurasi, nol tuning |
 | Mode saat homing | stealthChop | syarat StallGuard4 |
@@ -395,7 +516,10 @@ Konfigurasi yang disarankan:
 | holdMultiplier | 0.4 - 0.5 | tahan posisi tanpa panas berlebih |
 | Arus J1/J3 (17HS4401/17HS2401, 1.7 A) | 1000-1200 mA RMS | ~60-70% rated, butuh heatsink |
 | Arus J2 (17HS6401, 1.7 A) | 1200-1400 mA RMS | butuh heatsink + kipas |
-| Kapasitor bulk per driver | ≥100 µF / 35 V low-ESR | |
+| Kapasitor bulk per driver | ≥100 µF / 35 V low-ESR | angka minimum datasheet |
+| Kapasitor bulk tambahan di rail | 470-1000 µF / 50 V | serap energi regenerasi, lihat bagian 6.4 |
+| Urutan nyala | tombol OUTPUT PSU, bukan colokan | hilangkan dering hot plug, lihat bagian 6.2 |
+| `VCC_IO` | 3.3 V dari ESP32 | jangan dari `5VOUT` driver |
 
 Catat bahwa >1.0 A RMS **wajib** heatsink besar plus aliran udara. Kalau
 pendinginan tidak memungkinkan, turunkan ke 900 mA dan kompensasi dengan rasio
@@ -403,7 +527,7 @@ reduksi, bukan dengan menaikkan arus di luar kemampuan termal.
 
 ---
 
-## 8. Mengatur karakter suara motor
+## 9. Mengatur karakter suara motor
 
 Suara "robot" yang terdengar di video lengan robot bukan efek tambahan. Itu
 motor stepper yang memang berbunyi, dan sumbernya bisa dikendalikan.
@@ -474,7 +598,10 @@ harus lewat STEP/DIR dengan profil akselerasi.
 
 - [TMC2209 Datasheet Rev 1.09, Analog Devices](https://www.analog.com/media/en/technical-documentation/data-sheets/TMC2209_datasheet_rev1.09.pdf)
 - [SilentStepStick FAQ, Watterott](https://learn.watterott.com/silentstepstick/faq/)
-- [TMC2209, BIGTREETECH Wiki](https://global.bttwiki.com/TMC2209.html)
+- [TMC2209, BIGTREETECH Wiki](https://bigtreetech.github.io/docs/TMC2209.html) (larangan hot plug modul driver)
+- [TMC2209 V1.2 Driver FAQ, BIQU Support](https://support.biqu3d.com/hc/en-us/articles/7048699597849-TMC2209-V1-2-Driver-FAQ)
+- [Using capacitors with TMC2209 Stepper Driver, Arduino Forum](https://forum.arduino.cc/t/using-capacitorcs-with-tmc2209-stepper-driver/1102434)
+- [TMC2209-BOB Datasheet Rev 1.00, Analog Devices](https://www.analog.com/media/en/technical-documentation/data-sheets/TMC2209-BOB_datasheet_rev1.00.pdf)
 - [TMC2209 UART RMS Current Calculation, OpenAstroTech Wiki](https://wiki.openastrotech.com/Knowledge/UART_RMS_Calculation)
 - [TMCStepper library source, teemuatlut](https://github.com/teemuatlut/TMCStepper)
 - [TMC Drivers, Klipper documentation](https://www.klipper3d.org/TMC_Drivers.html)

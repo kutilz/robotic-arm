@@ -14,7 +14,15 @@
  *   titik gabung      -> pin PDN modul TMC2209
  *   MS1 & MS2         -> GND  (alamat 0b00, HANYA untuk driver pertama)
  *   VIO               -> 3V3 ESP32 (JANGAN 5V)
- *   VM                -> PSU motor 12-24V, GND common dengan ESP32
+ *   VM                -> PSU motor 24V, GND common dengan ESP32
+ *
+ * URUTAN NYALA (batas absolut VM = 29V, di rail 24V margin transien cuma 5V):
+ *   1. Rangkai semua kabel dengan output PSU MATI.
+ *   2. Baru tekan tombol OUTPUT di PSU.
+ *   3. Jangan pernah cabut/pasang kabel daya atau motor saat power on.
+ *   Colok ke sumber hidup memicu dering LC sampai ~2x nominal (~48V) selama
+ *   beberapa mikrodetik. Driver mati tanpa satu pun flag di DRV_STATUS.
+ *   Latar: docs/research/driver-stepper-tmc2209-vs-drv8825.md §6.
  *
  * Perintah Serial Monitor (115200, baris diakhiri newline):
  *   ?            status lengkap + verifikasi setting arus

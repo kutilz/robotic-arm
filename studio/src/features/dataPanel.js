@@ -1,21 +1,20 @@
 /* ============================================================================
-   Engineering drawer: Offsets, Offset inspector, Sizing, Joint torque check,
-   Cycloidal geometry. (Pose/Presets/View pindah ke control card & scene panel.)
+   Engineering drawer: Geometri terukur (read-only), Sizing, Joint torque check.
+
+   Bagian Offsets, Offset inspector, dan slider Cycloidal geometry sudah dihapus
+   bersama twin parametrik: semuanya alat bantu MEMILIH geometri, sedangkan
+   geometrinya kini terkunci di rakitan CAD dan dibaca dari sumbu terukur.
+   Angka geometri sekarang cuma ditampilkan, tidak bisa digeser.
    ========================================================================== */
-import {
-  CYC, OFFS, OFFS_RESEARCH, OFFS_SEARAH, OFFS_LAMA, STATE, MOTORS,
-  plaCeiling, recalcCyc,
-} from '../config/arm.js';
-import { section, slider, buttonRow, button, note } from '../ui/panel.js';
+import { CYC, STATE, MOTORS } from '../config/arm.js';
+import { section, slider, note } from '../ui/panel.js';
 import { cssVar } from '../core/theme.js';
 import { computeTorques, haveTorque, lastTorques, onUpdate } from '../model/kinematics.js';
-import {
-  setMode, focusJoint, clearFocus, rebuildArmOnly, rebuildGeo, onFocusChange,
-} from './inspector.js';
+import { world } from '../model/rig.js';
 import { updateHud } from '../ui/hud.js';
 
 const cards = [];
-let payloadSlider = null, offRefs = {}, focusBtns = [];
+let payloadSlider = null;
 
 function hexA(hex, a) { const h = hex.replace('#', ''); const r = parseInt(h.substr(0, 2), 16), g = parseInt(h.substr(2, 2), 16), b = parseInt(h.substr(4, 2), 16); return `rgba(${r},${g},${b},${a})`; }
 
@@ -49,38 +48,29 @@ export function updateTorqueUI() {
 }
 
 export function buildDataPanel(scroll) {
-  /* ---- offsets ---- */
-  const offBody = section(scroll, 'Offsets · packaging (CAD)');
-  offRefs = {};
-  const offSlider = (label, key, min, max) => { offRefs[key] = slider(offBody, label, min, max, OFFS[key], 1, ' mm', v => { OFFS[key] = v; rebuildArmOnly(); }); };
-  offSlider('Kolom J1->J2', 'colH', 40, 200);
-  offSlider('Shoulder lateral', 'shoulder', -70, 70);
-  offSlider('Elbow lateral (J3)', 'elbow', -70, 70);
-  offSlider('Forearm inset (J4)', 'fore', -30, 30);
-  offSlider('J5 off-axis !', 'w5', -20, 20);
-  offSlider('J6 off-axis !', 'w6', -20, 20);
-  const offBtns = buttonRow(offBody);
-  const offPreset = (name, vals) => button(offBtns, name, () => {
-    Object.assign(OFFS, vals);
-    for (const k in offRefs) { offRefs[k].value = OFFS[k]; offRefs[k].parentElement.querySelector('.val').textContent = OFFS[k].toFixed(0) + ' mm'; }
-    rebuildArmOnly();
-  });
-  offPreset('Research 35/-50', OFFS_RESEARCH);
-  offPreset('Searah 35/+50', OFFS_SEARAH);
-  offPreset('Lama 30/-26', OFFS_LAMA);
-  note(offBody, 'Aturan emas research §5: offset besar hanya di J1-J3; wrist w5/w6 <b>wajib 0</b> (slider ! cuma demo pecahnya closed-form IK, lihat readout <b>drift</b> di status card). Offset lateral tidak mengubah torsi pitch.');
-
-  /* ---- offset inspector ---- */
-  const inspBody = section(scroll, 'Offset inspector (per joint)');
-  const jbRow = buttonRow(inspBody);
-  focusBtns = [];
-  ['J1', 'J2', 'J3', 'J4', 'J5', 'J6'].forEach((n, i) => {
-    const b = button(jbRow, n, () => { if (STATE.mode !== 'offsets') setMode('offsets'); focusJoint(i); });
-    focusBtns.push(b);
-  });
-  button(jbRow, '✕ lepas', () => clearFocus());
-  onFocusChange((fi) => focusBtns.forEach((b, i) => { b.style.borderColor = (i === fi) ? cssVar('--accent') : ''; b.style.color = (i === fi) ? cssVar('--accent') : ''; }));
-  note(inspBody, 'Fokus per joint: part lain jadi ghost, muncul envelope packaging (wireframe) + rincian offset. Tombol otomatis pindah ke mode Offsets.');
+  /* ---- geometri terukur (read-only) ---- */
+  const geoBody = section(scroll, 'Geometri terukur (CAD)');
+  const g = world.geo || {};
+  const rows = [
+    ['a1', 'offset bahu J1->J2', g.a1],
+    ['a2', 'upper arm J2->J3', g.a2],
+    ['d4', 'forearm J3->pusat wrist', g.d4],
+    ['d6', 'pusat wrist->TCP', g.d6],
+    ['-', 'offset lateral (sumbu pitch)', g.lateral],
+    ['-', 'reach J2->TCP (lengan lurus)', g.reachFromJ2],
+    ['-', 'tinggi TCP di pose home', g.homeHeight],
+  ];
+  const tbl = document.createElement('div'); tbl.className = 'mini';
+  tbl.innerHTML = rows.map(([k, t, v]) =>
+    `<div class="row" style="margin:2px 0"><label style="width:auto;flex:1;font-size:10.5px">`
+    + `<b style="color:var(--accent)">${k}</b> ${t}</label>`
+    + `<span class="val">${v == null ? '-' : v.toFixed(2)} mm</span></div>`).join('');
+  geoBody.appendChild(tbl);
+  note(geoBody, 'Diukur dari <code>onshape/Main Assembly (Complete).glb</code> rev 2026-08-03: '
+    + 'sumbu J2/J3/J4 difit ke ring lubang roller, J1 ke kantong bola crown, J5/J6 ke boss keluaran servo '
+    + '(sd fit 0,000 mm). Rinciannya di <code>docs/bom-main-assembly.md</code>; tabelnya dibangkitkan dari '
+    + '<code>src/model/cadRig.js</code>, jadi tidak bisa digeser dari UI. TCP = titik tengah ujung wedge jaw '
+    + 'saat tertutup.');
 
   /* ---- sizing ---- */
   const sizeBody = section(scroll, 'Sizing · payload & margins');
@@ -111,14 +101,6 @@ export function buildDataPanel(scroll) {
     if (rr) { rr.oninput = () => { j.ratio = +rr.value; rv.textContent = rr.value; updateTorqueUI(); updateHud(); }; rv.textContent = j.ratio; }
     cardWrap.appendChild(c); cards.push(c);
   });
-
-  /* ---- geometry ---- */
-  const geoBody = section(scroll, 'Cycloidal geometry (J2-class drive)', false);
-  slider(geoBody, 'Ring pins N', 6, 60, CYC.N, 1, '', v => { CYC.N = v; recalcCyc(); rebuildGeo(); });
-  slider(geoBody, 'Pin circle R', 18, 80, CYC.pinCircleR, 1, ' mm', v => { CYC.pinCircleR = v; recalcCyc(); STATE.plaCeil = plaCeiling(); rebuildGeo(); updateTorqueUI(); });
-  slider(geoBody, 'Eccentricity e', 0.4, 3, CYC.ecc, 0.1, ' mm', v => { CYC.ecc = v; rebuildGeo(); });
-  slider(geoBody, 'Disk thickness', 4, 14, CYC.diskT, 1, ' mm', v => { CYC.diskT = v; recalcCyc(); rebuildGeo(); });
-  note(geoBody, 'N=25 -> 25:1, lobes=24, dual disk 180°, output 6×Ø5 dowels, ecc-bearing 6700. J2 pin-circle upsized ~30mm untuk angkat ceiling PLA+ (13 -> ~17 N·m); J3/J4 tetap ~22mm.');
 
   // refresh cards/HUD tiap pose berubah
   onUpdate(() => { updateTorqueUI(); updateHud(); });

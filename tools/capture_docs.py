@@ -46,8 +46,13 @@ from pathlib import Path
 import cv2
 
 # OpenCV meneriakkan "backend can't be used to capture by index" tiap probe index
-# kosong - benar tapi tidak actionable, dan menenggelamkan output kita
-cv2.utils.logging.setLogLevel(cv2.utils.logging.LOG_LEVEL_ERROR)
+# kosong - benar tapi tidak actionable, dan menenggelamkan output kita.
+# Submodule cv2.utils.logging tidak selalu ke-expose (beda antar build
+# opencv-python, terbukti beda antara PC dan laptop) - diamkan saja kalau hilang.
+try:
+    cv2.utils.logging.setLogLevel(cv2.utils.logging.LOG_LEVEL_ERROR)
+except AttributeError:
+    pass
 
 REPO = Path(__file__).resolve().parent.parent
 

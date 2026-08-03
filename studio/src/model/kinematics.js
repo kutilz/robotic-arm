@@ -1,10 +1,15 @@
 /* ============================================================================
-   Kinematics: FK pose, torsi gravitasi, wrist drift (port dari legacy) plus
-   IK numerik damped-least-squares (baru) untuk jog Cartesian + TCP readout.
+   Kinematics: FK pose, torsi gravitasi, plus IK numerik damped-least-squares
+   untuk jog Cartesian + TCP readout.
+
+   FK-nya adalah scene graph itu sendiri: rantai `world.pivots` dibangun dari
+   sumbu sendi hasil ukur CAD (src/model/cadRig.js), jadi angka yang dibaca
+   panel dan mesh CAD yang terlihat berasal dari geometri yang sama persis.
    ========================================================================== */
 import { THREE, scene, camTarget } from '../core/viewport.js';
 import { STATE, MOTORS, G, d2r, isServo } from '../config/arm.js';
-import { world } from './arm.js';
+import { world } from './rig.js';
+import { poseRig } from './cadRig.js';
 
 export let lastTorques = [];
 const listeners = new Set();
@@ -13,14 +18,13 @@ export function onUpdate(fn) { listeners.add(fn); return () => listeners.delete(
 function emit() { for (const fn of listeners) fn(); }
 
 /* ---------------- FK ---------------- */
+// Sumbu sendi CAD tidak sejajar sumbu utama secara persis (mis. J4 = (0,1,0)
+// dengan simpangan 0,001, J5 = (0.999,-0.053,-0.001)), dan pose simpan rakitan
+// bukan pose nol. Jadi rotasi dipasang sebagai quaternion terhadap sumbu asli
+// plus offset home, bukan sebagai Euler per sumbu utama seperti model lama.
 function setRotations() {
-  for (const jr of world.jointRefs) {
-    const a = jr.def.a * d2r;
-    jr.pivot.rotation.set(0, 0, 0);
-    if (jr.axis.x) jr.pivot.rotation.x = a;
-    else if (jr.axis.z) jr.pivot.rotation.z = a;
-    else jr.pivot.rotation.y = a;
-  }
+  if (!world.pivots.length) return;
+  poseRig(world.pivots, world.homeOff, STATE.joints.map(j => j.a));
   scene.updateMatrixWorld(true);
 }
 /** fromFeedback=true dipakai bridge: pose dari hardware, bukan edit lokal.
@@ -29,17 +33,6 @@ function setRotations() {
 export function applyPose(fromFeedback = false) {
   if (!fromFeedback) STATE.poseDirty = true;
   setRotations(); computeTorques(); emit();
-}
-
-export function applyExplode() {
-  const ex = STATE.explode;
-  const drives = [];
-  scene.traverse(o => { if (o.userData && o.userData.layers) drives.push(o); });
-  for (const d of drives) {
-    const L = d.userData.layers, sc = d.userData.sc || 1, s = 18 * sc;
-    L.motor.position.y = -ex * s * 2.2; L.housing.position.y = 0;
-    L.disk.position.y = ex * s * 1.2; L.hub.position.y = ex * s * 2.4;
-  }
 }
 
 /* ---------------- torsi gravitasi ---------------- */
@@ -62,23 +55,19 @@ export function computeTorques() {
     }
     lastTorques.push(Math.abs(tau));
   }
-  computeWristDrift();
 }
 
-export function computeWristDrift() {
-  if (world.jointRefs.length < 6) { world.wristDrift = 0; return; }
-  const L = [3, 4, 5].map(i => {
-    const p = new THREE.Vector3(); world.jointRefs[i].pivot.getWorldPosition(p);
-    const d = world.jointRefs[i].axis.clone().applyQuaternion(world.jointRefs[i].pivot.getWorldQuaternion(new THREE.Quaternion())).normalize();
-    return { p, d };
-  });
-  const dd = (a, b) => {
-    const n = new THREE.Vector3().crossVectors(a.d, b.d), nl = n.length();
-    const w = new THREE.Vector3().subVectors(b.p, a.p);
-    if (nl < 1e-6) return new THREE.Vector3().crossVectors(w, a.d).length();
-    return Math.abs(w.dot(n)) / nl;
-  };
-  world.wristDrift = Math.max(dd(L[0], L[1]), dd(L[0], L[2]), dd(L[1], L[2]));
+/** pemakaian travel sendi terketat: 0 = di tengah rentang, 1 = mentok limit.
+    Menggantikan readout `drift` lama, yang sekarang selalu ~0 karena sumbu
+    J4/J5/J6 CAD terbukti berpotongan dalam 0,05 mm. */
+export function tightestLimit() {
+  let worst = STATE.joints[0], frac = 0;
+  for (const j of STATE.joints) {
+    const span = Math.max(1e-6, Math.max(Math.abs(j.min), Math.abs(j.max)));
+    const f = Math.abs(j.a) / span;
+    if (f > frac) { frac = f; worst = j; }
+  }
+  return { id: worst ? worst.id : '-', frac };
 }
 
 /* ---------------- torsi tersedia ---------------- */

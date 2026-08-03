@@ -5,9 +5,8 @@
    ========================================================================== */
 import { STATE } from '../config/arm.js';
 import { isOrtho } from '../core/viewport.js';
-import { applyExplode } from '../model/kinematics.js';
-import { setMode, refreshVisToggles, rebuildSweep } from './inspector.js';
-import { setCadVisible } from '../model/cadModel.js';
+import { applyExplode } from '../model/rig.js';
+import { refreshVisToggles } from './viewToggles.js';
 import { slider, toggle } from '../ui/panel.js';
 import { icon } from '../ui/icons.js';
 import { buildViewButtons, setView, setProjection, registerProjIndicator } from './viewCube.js';
@@ -23,11 +22,6 @@ export function buildScenePanel(panel) {
       <span class="icobtn chev">${icon('chevron')}</span>
     </div>
     <div class="spBody">
-      <div id="modePill" class="seg" role="tablist" aria-label="Mode tampilan">
-        <button data-mode="arm" class="on">Full arm</button>
-        <button data-mode="offsets">Offsets</button>
-        <button data-mode="drive">Drive</button>
-      </div>
       <div class="cap">view</div>
       <div class="spToggles"></div>
       <div class="cap">orientasi kamera</div>
@@ -35,20 +29,17 @@ export function buildScenePanel(panel) {
     </div>`;
 
   panel.querySelector('.spHead').onclick = () => panel.classList.toggle('open');
-  panel.querySelectorAll('#modePill button').forEach(b => { b.onclick = () => setMode(b.dataset.mode); });
 
   buildViewButtons(panel.querySelector('.vcHost'));
 
   const body = panel.querySelector('.spToggles');
   const vt = (label, key) => toggle(body, label, () => STATE.show[key], v => { STATE.show[key] = v; refreshVisToggles(); });
-  vt('Rotation axes + labels', 'axes');
-  vt('Center-of-mass markers', 'masses');
-  vt('Dimension tags', 'dims');
+  vt('Mesh CAD (Main Assembly)', 'cad');
   vt('Skeleton centerline', 'skeleton');
+  vt('Rotation axes + labels', 'axes');
+  vt('Dimension tags', 'dims');
+  vt('Center-of-mass markers', 'masses');
   vt('X-ray solids', 'xray');
-  vt('Wrist axes (concurrency)', 'wristAxes');
-  toggle(body, 'Sweep ghost J3', () => STATE.show.sweep, v => { STATE.show.sweep = v; rebuildSweep(); refreshVisToggles(); });
-  toggle(body, 'CAD model (Testing Assembly)', () => STATE.show.cad, v => { STATE.show.cad = v; setCadVisible(v); });
   slider(body, 'Exploded view', 0, 1, 0, 0.01, '', v => { STATE.explode = v; applyExplode(); });
 }
 
