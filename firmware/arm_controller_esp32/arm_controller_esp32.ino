@@ -135,10 +135,18 @@ const char* MDNS_NAME = "armbot";   // -> ws://armbot.local:81 (mode STA)
 const uint16_t WS_PORT = 81;
 
 // --- Fitur opsional ---
-#define SERVO_FEEDBACK 1    // 1 = baca wiper pot MG996R (butuh mod servo).
+#define SERVO_FEEDBACK 0    // 1 = baca wiper pot MG996R (butuh mod servo).
                             //     Jalur hardware final = ADS1115 di bus I2C.
                             //     Implementasi di sini MASIH ADC1 internal dan
                             //     belum dimigrasi; lihat pinout.md §3.
+                            // SEKARANG 0 (fase bench motor telanjang): servo
+                            // belum dipakai, dan implementasi ADC1 internal di
+                            // GPIO34/35 satu bank dengan GPIO36 = HX711 DT.
+                            // Erratum ESP32: menyalakan ADC1 bisa memunculkan
+                            // pulsa LOW palsu di GPIO36/39, terbaca HX711
+                            // sebagai data-ready bohongan -> berat ngawur
+                            // sesekali tanpa error. Kembalikan ke 1 setelah
+                            // feedback servo pindah ke ADS1115.
 #define USE_TMC_UART   1    // 1 = kontrol penuh TMC2209 via UART: arus, microstep,
                             //     stealthChop, StallGuard, diagnostik (butuh TMCStepper)
 #define USE_HX711      1    // 1 = baca load cell via HX711 (bench uji torsi)
@@ -204,6 +212,13 @@ const uint8_t  TMC_HOLD_PCT_DEFAULT = 40;   // arus tahan 40% dari arus jalan
 // --- Guardrail closed-loop ---
 const int   ENC_FAULT_LIMIT = 25;    // gagal baca berturut-turut -> joint FAULT
 const float CORR_MAX_DEG    = 5.0;   // clamp besaran koreksi per update (derajat)
+// Joint yang sudah FAULT tidak di-poll tiap siklus lagi. Satu transaksi I2C
+// yang gagal memakan waktu bus DAN memuntahkan satu baris error Wire.cpp;
+// dengan 3 joint tanpa encoder itu ~375 baris/detik, cukup untuk menenggelamkan
+// log pengukuran dan mencuri waktu loop dari joint yang encodernya sehat.
+// Percobaan ulang tiap 2 s masih cukup cepat mendeteksi kabel yang dicolok
+// balik di tengah sesi.
+const uint32_t ENC_RETRY_MS = 2000;
 
 // --- Servo J5..J6 ---
 const uint8_t SERVO_PIN[NUM_SERVO] = {18, 19};
@@ -360,8 +375,9 @@ unsigned long lastFeedback = 0;
 
 // Guardrail encoder: hitung gagal-baca berturut-turut per joint stepper.
 // >= ENC_FAULT_LIMIT -> encFault, koreksi closed-loop off (fallback step counter).
-uint8_t encFailCount[NUM_STEPPER] = {0};
-bool    encFault[NUM_STEPPER]     = {false};
+uint8_t  encFailCount[NUM_STEPPER] = {0};
+bool     encFault[NUM_STEPPER]     = {false};
+uint32_t encNextRetry[NUM_STEPPER] = {0};   // millis() percobaan ulang saat FAULT
 
 // Mux TCA9548A terdeteksi saat boot? false = mode bench "AS5600 tunggal":
 // encoder langsung di bus, hanya J1 (channel 0) dianggap ber-encoder.
@@ -438,6 +454,12 @@ int readAS5600Reg(uint8_t reg, bool word) {
 // Sudut OUTPUT sendi stepper (derajat), sudah dikoreksi offset & arah.
 // Sekalian memelihara counter fault (guardrail encoder mati/copot).
 float readStepperEncoder(int s) {
+  // Sudah FAULT: lewati bus sama sekali sampai jadwal coba-ulang. Selisih
+  // dihitung bertanda supaya tetap benar saat millis() melewati batas 32 bit.
+  if (encFault[s]) {
+    if ((int32_t)(millis() - encNextRetry[s]) < 0) return NAN;
+    encNextRetry[s] = millis() + ENC_RETRY_MS;
+  }
   float raw = readAS5600Raw(ENC_CHANNEL[s]);
   if (isnan(raw)) {
     if (encFailCount[s] < 255) encFailCount[s]++;
@@ -1112,9 +1134,27 @@ void onWsEvent(uint8_t num, WStype_t type, uint8_t* payload, size_t length) {
 // Jadi Access Point, dipakai WIFI_FORCE_AP, atau fallback saat semua preset
 // gagal (guardrail: ESP32 tidak boleh unreachable). Bertahan sampai reboot,
 // supaya koneksi klien stabil (AP+STA scan bikin channel loncat, klien drop).
+// Daya pancar WiFi. Default penuh 19.5 dBm; turunkan (mis. WIFI_POWER_11dBm)
+// hanya kalau ada alasan jangkauan/termal, BUKAN sebagai obat brownout.
+//
+// Catatan hasil bench 2026-07-31, supaya tidak dicoba ulang sia-sia: board
+// bench brownout DI DALAM WiFi.mode() sendiri, saat PHY radio dinyalakan.
+// setTxPower() wajib dipanggil SETELAH WiFi.mode() (sebelum itu radio belum
+// diinisialisasi dan panggilannya ditolak), jadi menurunkannya tidak pernah
+// sempat berlaku dan sama sekali tidak menolong. Obat brownout ada di catu
+// daya: 5V >=2 A ke pin V5, bukan di sini.
+#define WIFI_TX_POWER WIFI_POWER_19_5dBm
+
+void applyWifiTxPower() {
+  WiFi.setTxPower(WIFI_TX_POWER);
+  Serial.printf("[WiFi] daya pancar %d (skala 0.25 dBm; 78 = 19.5 dBm penuh)\n",
+                (int)WiFi.getTxPower());
+}
+
 void startAP(const char* why) {
   runningAsAP = true;
   WiFi.mode(WIFI_AP);
+  applyWifiTxPower();
   WiFi.softAP(AP_SSID, AP_PASS);
   Serial.printf("[WiFi] %s -> Access Point '%s' aktif. Web -> ws://%s:%u\n",
                 why, AP_SSID, WiFi.softAPIP().toString().c_str(), WS_PORT);
@@ -1126,6 +1166,7 @@ void setupWiFi() {
   startAP("WIFI_FORCE_AP");
 #else
   WiFi.mode(WIFI_STA);
+  applyWifiTxPower();
   // Guardrail: putus di tengah operasi -> auto-reconnect ke AP terakhir + mDNS
   // daftar ulang; kalau AP-nya hilang total, loop() mencoba ulang SEMUA preset.
   WiFi.setAutoReconnect(true);

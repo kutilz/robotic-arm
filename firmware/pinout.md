@@ -260,6 +260,47 @@ Batas absolut `VM` TMC2209 = **29 V**, jadi di rail 24 V margin transien tinggal
 
 Latar dan hitungannya: `docs/research/driver-stepper-tmc2209-vs-drv8825.md` §6.
 
+### Rail 3.3V: AMS1117 bawaan board bench pernah cacat, sudah diganti
+
+Riwayat bring-up 2026-07-31, disimpan karena gejalanya menyesatkan dan mahal
+waktunya. Board bench (ESP32-D0WD-V3, MAC 30:76:f5:93:b0:e0) **boot loop
+brownout** tiap kali `WiFi.mode()` dipanggil. Penyebabnya AMS1117 bawaan yang
+di luar spesifikasi: keluarannya cuma 3.1–3.2 V (seharusnya 3.23–3.37 V) dan
+tidak sanggup melayani lonjakan ~300–400 mA saat PHY radio menyala.
+
+**Solusi akhir: AMS1117-nya diganti** (solder uap). Setelah itu 3V3 terukur
+3.289 V dan board jalan stabil dengan WiFi hanya bermodal USB. Suntikan 3.3 V
+eksternal ke pin `3V3` sempat dipakai sebagai penambal sementara dan berhasil,
+tapi tidak lagi diperlukan.
+
+Cara mengenali gejala ini kalau terulang di board lain:
+
+- Brownout **hanya** saat WiFi. Sketch tanpa radio (mis. `tmc_bench`) berjalan
+  stabil bermenit-menit sambil menggerakkan motor pada ~1 A.
+- Ambruknya **di dalam `WiFi.mode()`**, bukan saat memancar. Sisipkan `Serial`
+  print sebelum & sesudah baris itu untuk memastikan.
+- Ukur `3V3` dengan multimeter. Di bawah 3.23 V = regulator tersangka utama.
+  Ukur juga `V5`: kalau sehat (4.99–5.05 V), masalahnya di hilir, bukan di USB.
+
+Yang **tidak** menolong, sudah diuji semua, jangan diulang: ganti kabel USB,
+ganti port USB, kapasitor 2200 µF di 3V3 (yang kurang arus berkelanjutan, bukan
+simpanan sesaat), `WiFi.setTxPower()` (brownout terjadi di dalam `WiFi.mode()`,
+sebelum baris itu tercapai), erase + reflash total, dan menyuntik 5V ke `V5`.
+
+Kalau perlu menambal sementara tanpa menyolder, 3.3 V eksternal ke pin `3V3`
+memang bekerja: LDO tidak bisa menyerap arus, jadi AMS1117 menganggur sendiri
+begitu node itu ditahan lebih tinggi dari yang sanggup dia hasilkan. Syaratnya
+setel & ukur buck **dalam keadaan terlepas** dulu (sasaran 3.30–3.35 V;
+absolute max ESP32 3.6 V dan pin itu masuk langsung ke chip tanpa proteksi),
+lalu colok USB dulu baru 3.3 V, cabut 3.3 V dulu baru USB (kalau 3.3 V hidup
+sementara masukan AMS1117 sudah 0 V, regulator itu terbias terbalik).
+
+> ⚠️ Jangan pasang apa pun ke pin `SD0/SD1/SD2/SD3/CMD/CLK` (GPIO6–11): itu bus
+> flash internal. Kapasitor yang salah mendarat di `CMD` (bersebelahan dengan
+> pin `V5` di ujung bawah board) membuat flash berhenti menjawab: gejalanya
+> `invalid header: 0xffffffff` + `flash read err`, dan `esptool flash_id`
+> melaporkan Manufacturer `ff`.
+
 ---
 
 ## Urutan cek wiring saat bring-up
