@@ -39,6 +39,26 @@ npm run build    # output ke studio/dist
 npm run preview  # sajikan hasil build
 ```
 
+## Deploy web (Vercel)
+
+`vercel.json` di root repo yang mengatur build-nya, karena root repo berisi
+`pyproject.toml` sehingga Vercel salah menebak ini proyek Python:
+
+```json
+{ "framework": "vite",
+  "installCommand": "npm --prefix studio ci",
+  "buildCommand": "npm --prefix studio run build",
+  "outputDirectory": "studio/dist" }
+```
+
+Alternatif tanpa `vercel.json`: set **Root Directory = `studio`** di setting
+proyek Vercel, biar Vite terdeteksi otomatis dari `studio/package.json`.
+
+`main-assembly.glb` gitignored (1,8 MB) sehingga tidak ikut ke repo maupun ke
+build web: situs hasil deploy jalan sebagai **skeleton**. Supaya mesh CAD ikut
+tampil di web, GLB hasil `tools/optimize_cad_glb.mjs` harus di-commit ke
+`studio/public/`.
+
 ## Struktur modul
 
 ```
