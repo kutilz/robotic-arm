@@ -55,9 +55,29 @@ Alternatif tanpa `vercel.json`: set **Root Directory = `studio`** di setting
 proyek Vercel, biar Vite terdeteksi otomatis dari `studio/package.json`.
 
 `main-assembly.glb` gitignored (1,8 MB) sehingga tidak ikut ke repo maupun ke
-build web: situs hasil deploy jalan sebagai **skeleton**. Supaya mesh CAD ikut
-tampil di web, GLB hasil `tools/optimize_cad_glb.mjs` harus di-commit ke
-`studio/public/`.
+build web. Supaya mesh CAD asli ikut tampil di web, GLB hasil
+`tools/optimize_cad_glb.mjs` harus di-commit ke `studio/public/`.
+
+## Model blok (fallback tanpa GLB)
+
+Kalau GLB tidak ada, `previewModel.js` memasang **model blok sederhana**: satu
+balok atau silinder per part, ditempel ke `partHost` yang sama dengan mesh CAD
+sehingga rantai sendi, exploded view, x-ray, dan toggle tampilan tidak berubah.
+
+Ini bukan mesh CAD dan tidak berpura-pura jadi mesh CAD: tidak ada fillet,
+lubang, rusuk, atau kantong bola. Yang akurat cuma posisi (pusat bbox tiap part
+dari `CAD_PARTS`) dan ukuran (bbox part dari `docs/bom-main-assembly.md`).
+Satu-satunya baris yang sengaja menyimpang dari bbox terukur adalah J1 Flange,
+yang ditipiskan dari 37 ke 10 mm karena aslinya pelat berongga.
+
+```bash
+node tools/verify_preview_model.mjs   # cakupan tabel + bbox rakitan, tanpa GLB
+```
+
+Verifier itu memeriksa tiap baris `CAD_PARTS` punya bentuk, tidak ada baris
+`PREVIEW_SPEC` yang nganggur, dan bbox rakitan hasil blok mendekati bbox
+terukur di BOM (dapat 226,0 x 250,7 x 815,6 mm vs 240 x 266 x 815,7 mm).
+Berbeda dengan `verify_cad_rig.mjs`, verifier ini tidak butuh GLB.
 
 ## Struktur modul
 
@@ -70,8 +90,13 @@ src/
                        material, render loop, primitive helper
     theme.js           warna scene + axis CVD-aware (dark-only)
   model/
-    cycloidal.js       geometri cycloidal drive, belt, NEMA, servo, AS5600
-    arm.js             hierarki FK lengan 6-DOF (world.jointRefs, eeNode, dst.)
+    cadRig.js          SUMBER geometri: sumbu sendi terukur, peta part->link,
+                       matematika rantai (tanpa WebGL, bisa diuji di Node)
+    rig.js             rantai sendi + overlay (skeleton, sumbu, dimensi, massa),
+                       exploded view, x-ray
+    cadModel.js        pemuat main-assembly.glb + status 'ready' / 'preview'
+    previewSpec.js     tabel bentuk model blok (data murni, tanpa import)
+    previewModel.js    model blok sederhana kalau GLB tidak ada (lihat bawah)
     kinematics.js      FK pose, torsi gravitasi, wrist drift, IK DLS numerik
   features/
     jog.js             logika jog per-sendi + Cartesian, step size, home pose

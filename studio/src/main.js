@@ -115,18 +115,19 @@ onCadStatus((s) => {
     cadBanner.textContent = 'memuat mesh CAD (main-assembly.glb, 1,8 MB)...';
   } else if (s === 'ready') {
     cadBanner.style.display = 'none';
-  } else if (s === 'missing') {
+  } else if (s === 'preview') {
     // Build produksi (deploy web) tidak menampilkan apa pun saat GLB absen:
     // situsnya dipakai untuk presentasi, banner peringatan cuma mengganggu.
-    // Di dev banner tetap muncul supaya jelas kenapa tampilan jatuh ke skeleton.
+    // Di dev banner tetap muncul supaya jelas model blok yang sedang tampil
+    // bukan mesh CAD.
     if (import.meta.env.PROD) {
       cadBanner.style.display = 'none';
       return;
     }
     cadBanner.style.display = 'block';
     cadBanner.style.color = 'var(--warn)';
-    cadBanner.innerHTML = 'mesh CAD belum ada di mesin ini, tampilan jatuh ke <b>skeleton</b>. '
-      + 'Kinematika, jog, IK, dan timeline tetap akurat. Untuk membangunnya: '
+    cadBanner.innerHTML = 'mesh CAD belum ada di mesin ini, tampilan memakai <b>model blok</b> '
+      + '(posisi dari CAD_PARTS, ukuran dari BOM). Untuk mesh aslinya: '
       + '<code>node tools/optimize_cad_glb.mjs "onshape/Main Assembly (Complete).glb"</code>';
   }
 });

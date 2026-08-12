@@ -156,7 +156,23 @@ export function buildRig() {
 /** Tempelkan scene GLB ke link masing-masing dan siapkan arah exploded view. */
 export function attachCad(gltfScene) {
   const res = attachParts(gltfScene, world.partHosts);
+  indexParts();
+  world.cadLoaded = true;
+  return res;
+}
+
+/** Sama seperti attachCad tapi untuk model blok previewModel.js, yang part-nya
+    sudah ditempel sendiri ke partHosts. `cadLoaded` sengaja tetap false: yang
+    tampil bukan mesh CAD. */
+export function attachPreview() {
+  indexParts();
+}
+
+/** Daftarkan apa pun yang sudah menempel di partHosts sebagai part tampilan:
+    hitung arah exploded view, kumpulkan material untuk x-ray. Idempoten. */
+function indexParts() {
   const mats = new Set();
+  world.cadParts = [];
 
   // arah explode = sumbu sendi induk link tersebut, di frame file CAD (partHost
   // membawa rotasi basis + skala, jadi offset harus dinyatakan di frame itu).
@@ -173,9 +189,7 @@ export function attachCad(gltfScene) {
   });
 
   world.cadMats = [...mats];
-  world.cadLoaded = true;
   applyExplode();
-  return res;
 }
 
 /** geser part CAD sepanjang sumbu link-nya sesuai slider exploded view. */
