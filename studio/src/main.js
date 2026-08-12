@@ -116,16 +116,18 @@ onCadStatus((s) => {
   } else if (s === 'ready') {
     cadBanner.style.display = 'none';
   } else if (s === 'missing') {
+    // Build produksi (deploy web) tidak menampilkan apa pun saat GLB absen:
+    // situsnya dipakai untuk presentasi, banner peringatan cuma mengganggu.
+    // Di dev banner tetap muncul supaya jelas kenapa tampilan jatuh ke skeleton.
+    if (import.meta.env.PROD) {
+      cadBanner.style.display = 'none';
+      return;
+    }
     cadBanner.style.display = 'block';
     cadBanner.style.color = 'var(--warn)';
-    // Di build produksi (deploy web) instruksi build GLB tidak relevan bagi
-    // penonton, jadi banner-nya cukup menerangkan tampilan yang sedang dilihat.
-    cadBanner.innerHTML = import.meta.env.PROD
-      ? 'mesh CAD tidak disertakan di build web ini, tampilan memakai <b>skeleton</b>. '
-        + 'Kinematika, jog, IK, dan timeline tetap akurat.'
-      : 'mesh CAD belum ada di mesin ini, tampilan jatuh ke <b>skeleton</b>. '
-        + 'Kinematika, jog, IK, dan timeline tetap akurat. Untuk membangunnya: '
-        + '<code>node tools/optimize_cad_glb.mjs "onshape/Main Assembly (Complete).glb"</code>';
+    cadBanner.innerHTML = 'mesh CAD belum ada di mesin ini, tampilan jatuh ke <b>skeleton</b>. '
+      + 'Kinematika, jog, IK, dan timeline tetap akurat. Untuk membangunnya: '
+      + '<code>node tools/optimize_cad_glb.mjs "onshape/Main Assembly (Complete).glb"</code>';
   }
 });
 
