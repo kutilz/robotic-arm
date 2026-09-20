@@ -49,6 +49,9 @@ firmware/**/build/
 firmware/arm_controller_esp32/wifi_secrets.h
 .gstack/
 
+# Host/IP PC remote-build, template ada di remote_build.config.example.json
+tools/remote_build.config.json
+
 # Node / Vite (studio digital twin)
 node_modules/
 studio/dist/
@@ -72,3 +75,60 @@ onshape/*.3mf
 
 # PlatformIO (build firmware ESP32)
 firmware/**/.pio/
+
+# Deck sidang: semuanya di public/ ini turunan, dihasilkan ulang oleh
+# npm run fonts, npm run model, tools/sync_data.mjs, dan tools/render_klip.py.
+# Klip mp4 dan rekaman demo sengaja tidak masuk repo: ukurannya ratusan MB dan
+# keduanya dirender ulang dari kode, bukan sumber kebenaran.
+sidang/node_modules/
+sidang/dist/
+sidang/public/data/
+sidang/public/fonts/
+sidang/public/models/
+sidang/public/clips/
+sidang/public/video/
+
+# ---------------------------------------------------------------------------
+# Repo ini publik. Aturan di bawah menjaga tiga hal supaya tidak ikut terbit:
+# materi skripsi, konten berhak cipta pihak ketiga, dan media mentah ratusan MB.
+# Semuanya tetap ada di disk lokal, hanya tidak di-track git.
+# ---------------------------------------------------------------------------
+
+# Materi skripsi: naskah, gambar bab, deck sidang, draf paper. Belum
+# disidangkan/terbit, jadi sengaja tidak dipublikasikan lebih dulu.
+thesis/
+sidang/
+paper-ieee/
+
+# Foto dan video mentah proses perakitan (ratusan MB, langsung dari kamera HP).
+# Versi terkompresi yang dipakai README ada di docs/img/ dan itu yang di-track.
+Skripkirip/
+banner/
+
+# Arsip literatur pihak ketiga: mirror HTML artikel dan ekstrak teks penuh
+# paper. Berhak cipta penulis aslinya, jadi tidak diredistribusi di sini.
+# Yang tetap di-track: INDEX.md, sumber-url.txt, dan ringkasan tulisan sendiri.
+docs/research/literatur-pembanding/paper/
+docs/research/literatur-pembanding/proyek/
+docs/research/literatur-pembanding/teks/
+
+# Transkrip chat riset (Gemini/Claude) dan unduhan README proyek lain.
+# Bahan kerja mentah, bukan bagian dari hasil.
+chat-archive/
+
+# Salinan lama benchmarks/data, isinya identik. Sumber kebenaran: benchmarks/.
+datas/
+
+# Perkakas dan panduan yang hanya melayani naskah skripsi (thesis/ di atas).
+docs/panduan_penulisan_skripsi_upi_*.md
+docs/handoff-gambar-cad-3d.md
+docs/dokumentasi-visual.md
+docs/research/thesis-writing/
+tools/cek_gambar.py
+tools/render_gambar.py
+tools/sajikan.py
+tools/.lapse-*.txt
+tools/buat_foto_komponen.py
+tools/buat_foto_rig_torsi.py
+tools/geser_nomor_gambar_bab2.py
+tools/render_klip.py
