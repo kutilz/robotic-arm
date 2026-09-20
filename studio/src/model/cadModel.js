@@ -14,14 +14,16 @@
    `node studio/tools/verify_cad_rig.mjs`.
    ========================================================================== */
 import { STATE } from '../config/arm.js';
-import { world, attachCad, setCadPartsVisible } from './rig.js';
+import { world, attachCad, attachPreview, setCadPartsVisible } from './rig.js';
 import { CAD_URL, CAD_PART_N } from './cadRig.js';
+import { buildPreviewParts } from './previewModel.js';
 // GLTFLoader + MeshoptDecoder di-import dinamis (code-split) supaya bundel
 // utama tetap ramping.
 
-let status = 'idle';   // idle | loading | ready | missing
+let status = 'idle';   // idle | loading | ready | preview
+let previewBuilt = false;
 const listeners = new Set();
-/** subscribe status pemuatan CAD: 'loading' | 'ready' | 'missing'. */
+/** subscribe status pemuatan CAD: 'loading' | 'ready' | 'preview'. */
 export function onCadStatus(fn) { listeners.add(fn); return () => listeners.delete(fn); }
 function setStatus(s, detail) { status = s; for (const fn of listeners) fn(s, detail); }
 export function getCadStatus() { return status; }
@@ -31,7 +33,7 @@ export function getCadStatus() { return status; }
     setCadVisible tiap kali toggle disentuh), kecuali retry=true. */
 export function loadCadModel(onDone, retry = false) {
   if (status === 'ready' || status === 'loading') { onDone && onDone(status === 'ready'); return; }
-  if (status === 'missing' && !retry) { onDone && onDone(false); return; }
+  if (status === 'preview' && !retry) { onDone && onDone(false); return; }
   setStatus('loading');
   Promise.all([
     import('three/examples/jsm/loaders/GLTFLoader.js'),
@@ -49,9 +51,19 @@ export function loadCadModel(onDone, retry = false) {
   });
 }
 
+/** GLB tidak ada: pasang model blok previewModel.js sebagai gantinya, sekali
+    saja. Rantai sendi, exploded view, x-ray, dan toggle tampilan tidak tahu
+    bedanya karena part-nya menempel di partHost yang sama. */
 function fail(msg, err) {
-  console.warn(`[cadModel] ${msg}; studio jalan sebagai skeleton.`, err);
-  setStatus('missing', msg);
+  console.warn(`[cadModel] ${msg}; studio memakai model blok sederhana.`, err);
+  if (!previewBuilt) {
+    const res = buildPreviewParts(world.partHosts);
+    if (res.warn.length) console.warn('[previewModel]', res.warn);
+    attachPreview();
+    previewBuilt = true;
+  }
+  setCadPartsVisible(STATE.show.cad);
+  setStatus('preview', msg);
 }
 
 function build(gltf) {
@@ -73,7 +85,7 @@ function build(gltf) {
     karena keduanya memang dipakai bersamaan (mis. x-ray + skeleton). */
 export function setCadVisible(v) {
   STATE.show.cad = v;
-  if (status === 'ready') { setCadPartsVisible(v); return; }
+  if (status === 'ready' || status === 'preview') { setCadPartsVisible(v); return; }
   if (v) loadCadModel();
 }
 
