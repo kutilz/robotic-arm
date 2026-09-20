@@ -18,12 +18,10 @@
 </p>
 
 <p align="center">
-  <img src="docs/img/arm-built.jpg" alt="The assembled arm on the bench" height="380">
-  &nbsp;&nbsp;
-  <img src="docs/img/digital-twin.png" alt="Cycloidal Arm Studio digital twin" height="380">
+  <img src="docs/img/demo-live.jpg" alt="The arm holding a fully extended pose while the digital twin mirrors it on the screen behind" width="80%">
 </p>
-<p align="center"><sub>Left: the physical arm. Right: the browser digital twin mirroring it at 50 Hz &mdash;
-<a href="https://robotic-arm-psi.vercel.app">try it live</a>.</sub></p>
+<p align="center"><sub>One frame, the whole idea: the arm holds a fully extended pose while the browser twin
+on the screen behind it shows the same joint angles, updated live over WebSocket.</sub></p>
 
 ---
 
@@ -82,9 +80,25 @@ torque ceiling from ~13 to ~17 N&middot;m.
 
 <p align="center"><img src="docs/img/mechanism.png" alt="Full arm mechanism with callouts" width="88%"></p>
 
+<p align="center"><img src="docs/img/poses.png" alt="Four reference poses with reach, height and payload" width="88%"></p>
+<p align="center"><sub>Working envelope: 815 mm standing height, 666 mm radial reach at the
+worst-case horizontal pose, 0.20 kg payload there. Figures are in Indonesian.</sub></p>
+
 <p align="center"><img src="docs/img/control-board.jpg" alt="ESP32 control board" width="70%"></p>
 <p align="center"><sub>ESP32 + TMC2209 drivers + TCA9548A I2C mux, so four AS5600 encoders
 that all share address 0x36 can be read on one bus.</sub></p>
+
+---
+
+## The digital twin
+
+<p align="center"><img src="docs/img/digital-twin.png" alt="Cycloidal Arm Studio" width="88%"></p>
+
+Jog each joint, drag the tool centre point, scrub a recorded routine, or run the
+commissioning tab against real hardware. It reads the arm's encoders and writes
+back joint targets, so the model on screen is the arm's state rather than a
+replay. [Open it in your browser](https://robotic-arm-psi.vercel.app) &mdash; it
+loads the real CAD mesh and runs without any hardware attached.
 
 ---
 
