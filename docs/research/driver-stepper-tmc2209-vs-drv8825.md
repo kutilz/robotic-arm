@@ -11,17 +11,17 @@ di 24 V) ditambahkan 2026-08-03. Sumber di bagian akhir.
 
 ## 1. Data motor
 
-| Parameter | 17HS6401 (S) | 17HS2401 |
-| --- | --- | --- |
-| Frame / panjang body | NEMA17, 60 mm | NEMA17, 40 mm (alias 42BYGH40) |
-| Step angle | 1.8° (ada varian `-09` = 0.9°) | 1.8° |
-| Arus rated | 1.7 A/fasa | 1.7 A/fasa |
-| Holding torque | 0.72 N·m (72 N·cm) | 0.45 N·m |
-| Resistansi fasa | 3.0 Ω | ~1.5 Ω (kelas 42BYGH40, ukur sendiri) |
-| Induktansi fasa | 6.2 mH | ~2.8 mH (ukur/estimasi) |
-| Rotor inertia | 80 g·cm² | ~54 g·cm² |
-| Lead | 4 kabel bipolar | 4 kabel bipolar |
-| Berat | 480 g | ~280 g |
+| Parameter            | 17HS6401 (S)                   | 17HS2401                              |
+| -------------------- | ------------------------------ | ------------------------------------- |
+| Frame / panjang body | NEMA17, 60 mm                  | NEMA17, 40 mm (alias 42BYGH40)        |
+| Step angle           | 1.8° (ada varian `-09` = 0.9°) | 1.8°                                  |
+| Arus rated           | 1.7 A/fasa                     | 1.7 A/fasa                            |
+| Holding torque       | 0.72 N·m (72 N·cm)             | 0.45 N·m                              |
+| Resistansi fasa      | 3.0 Ω                          | ~1.5 Ω (kelas 42BYGH40, ukur sendiri) |
+| Induktansi fasa      | 6.2 mH                         | ~2.8 mH (ukur/estimasi)               |
+| Rotor inertia        | 80 g·cm²                       | ~54 g·cm²                             |
+| Lead                 | 4 kabel bipolar                | 4 kabel bipolar                       |
+| Berat                | 480 g                          | ~280 g                                |
 
 **Peringatan varian:** `17HS6401S-09` adalah versi **0.9°** (400 full-step/rev,
 1.8 A, 0.70 N·m). Kalau motor yang dipakai varian ini tapi firmware mengasumsikan
@@ -54,12 +54,12 @@ P_coil (diam)        =   2 x I_rms^2 x R_fasa
 
 Hitungan nyata untuk 17HS6401 (R = 3.0 Ω), motor diam, dua fasa aktif:
 
-| Setting arus | P_coil | I_supply @12 V | I_supply @24 V |
-| --- | --- | --- | --- |
-| 600 mA RMS | 2.16 W | ~0.20 A | ~0.10 A |
-| 900 mA RMS | 4.86 W | ~0.45 A | ~0.23 A |
-| 1200 mA RMS | 8.64 W | ~0.80 A | ~0.40 A |
-| 1700 mA RMS (rated) | 17.3 W | ~1.60 A | ~0.80 A |
+| Setting arus        | P_coil | I_supply @12 V | I_supply @24 V |
+| ------------------- | ------ | -------------- | -------------- |
+| 600 mA RMS          | 2.16 W | ~0.20 A        | ~0.10 A        |
+| 900 mA RMS          | 4.86 W | ~0.45 A        | ~0.23 A        |
+| 1200 mA RMS         | 8.64 W | ~0.80 A        | ~0.40 A        |
+| 1700 mA RMS (rated) | 17.3 W | ~1.60 A        | ~0.80 A        |
 
 Jadi dengan `rms_current(600)` di 12 V, angka **0.2 A di display PSU adalah
 hasil yang benar**, bukan gejala kerusakan. Arus supply baru naik mendekati arus
@@ -101,11 +101,11 @@ begitu `begin()` menulis GCONF, VREF tetap aktif sebagai pengali.
 
 Modul BIGTREETECH TMC2209 keluar pabrik dengan **VREF = 1.2 V ± 0.1 V**. Artinya:
 
-| Yang diminta di kode | Faktor VREF (1.2 / 2.5) | Yang keluar sebenarnya |
-| --- | --- | --- |
-| `rms_current(600)` | 0.48 | **288 mA** |
-| `rms_current(900)` (J1/J3 di repo) | 0.48 | **432 mA** |
-| `rms_current(1200)` (J2 di repo) | 0.48 | **576 mA** |
+| Yang diminta di kode               | Faktor VREF (1.2 / 2.5) | Yang keluar sebenarnya |
+| ---------------------------------- | ----------------------- | ---------------------- |
+| `rms_current(600)`                 | 0.48                    | **288 mA**             |
+| `rms_current(900)` (J1/J3 di repo) | 0.48                    | **432 mA**             |
+| `rms_current(1200)` (J2 di repo)   | 0.48                    | **576 mA**             |
 
 Konsisten dengan tiga sumber independen: rumus Watterott `Irms = Vref x 0.71`
 (pada CS maksimum), spec BTT `I_RMS = V_REF / sqrt(2)`, dan rumus datasheet.
@@ -129,13 +129,13 @@ indikator **CV** yang menyala.
 
 ### Batas listrik
 
-| Parameter | Nilai |
-| --- | --- |
-| Tegangan motor (VM/VS) | 4.75 V - **28 V** |
-| Arus maksimum IC | 2.0 A RMS / 2.8 A peak |
-| Arus maksimum settable dengan R_SENSE 0.11 Ω | **1.77 A RMS** |
-| Aman tanpa pendingin serius | ~1.0 A RMS (heatsink kecil) |
-| >1.0 A RMS | butuh heatsink besar + kipas |
+| Parameter                                    | Nilai                        |
+| -------------------------------------------- | ---------------------------- |
+| Tegangan motor (VM/VS)                       | 4.75 V - **28 V**            |
+| Arus maksimum IC                             | 2.0 A RMS / 2.8 A peak       |
+| Arus maksimum settable dengan R_SENSE 0.11 Ω | **1.77 A RMS**               |
+| Aman tanpa pendingin serius                  | ~1.0 A RMS (heatsink kecil)  |
+| >1.0 A RMS                                   | butuh heatsink besar + kipas |
 
 28 V itu **keras**. Jangan pakai supply 36 V. Back-EMF dari deselerasi juga bisa
 mendorong VM naik, jadi 24 V nominal sudah dekat batas. Sediakan kapasitor bulk
@@ -143,13 +143,13 @@ low-ESR (≥100 µF, rating ≥35 V) sedekat mungkin ke tiap driver.
 
 ### R_SENSE: verifikasi, jangan asumsi
 
-| Board | R_SENSE |
-| --- | --- |
-| BIGTREETECH TMC2209 v1.2/v1.3 | 0.11 Ω |
-| Watterott SilentStepStick | 0.11 Ω |
-| FYSETC Silent2209 | 0.11 Ω |
-| Adafruit TMC2209 breakout | **0.05 Ω** |
-| Klon murah | 0.11 atau **0.15 Ω** |
+| Board                         | R_SENSE              |
+| ----------------------------- | -------------------- |
+| BIGTREETECH TMC2209 v1.2/v1.3 | 0.11 Ω               |
+| Watterott SilentStepStick     | 0.11 Ω               |
+| FYSETC Silent2209             | 0.11 Ω               |
+| Adafruit TMC2209 breakout     | **0.05 Ω**           |
+| Klon murah                    | 0.11 atau **0.15 Ω** |
 
 Salah R_SENSE = arus salah proporsional. Kode repo pakai `0.11f`. Kalau modulnya
 ternyata 0.15 Ω, arus aktual jadi 0.11/0.15 = **73%** dari yang diminta, dan itu
@@ -183,14 +183,14 @@ Ground truth tetap multimeter seri dengan coil (lihat prosedur bagian 6).
 
 ### stealthChop vs spreadCycle
 
-| | stealthChop | spreadCycle |
-| --- | --- | --- |
-| Suara | hampir senyap | terdengar jelas |
-| Torsi | lebih rendah | lebih tinggi |
-| Akurasi posisi | lebih rendah | lebih tinggi |
-| Panas motor | bisa lebih tinggi | normal |
-| Kecepatan tinggi | rawan lost step di atas ~60-100 RPM | stabil |
-| Perlu tuning | ya, autotune AT#1/AT#2 | tidak |
+|                  | stealthChop                         | spreadCycle     |
+| ---------------- | ----------------------------------- | --------------- |
+| Suara            | hampir senyap                       | terdengar jelas |
+| Torsi            | lebih rendah                        | lebih tinggi    |
+| Akurasi posisi   | lebih rendah                        | lebih tinggi    |
+| Panas motor      | bisa lebih tinggi                   | normal          |
+| Kecepatan tinggi | rawan lost step di atas ~60-100 RPM | stabil          |
+| Perlu tuning     | ya, autotune AT#1/AT#2              | tidak           |
 
 **stealthChop butuh prosedur autotune** yang gampang dirusak:
 
@@ -242,14 +242,14 @@ VM sebelum mencabut apa pun.
 
 ## 4. DRV8825: yang wajib diketahui
 
-| Parameter | Nilai |
-| --- | --- |
-| Tegangan motor | **8.2 V - 45 V** (tidak bisa 5 V) |
-| Arus per fasa tanpa pendingin | ~1.5 A |
-| Arus per fasa dengan pendingin memadai | 2.2 A |
-| Sense resistor (carrier Pololu) | 0.100 Ω |
-| Microstep | full, 1/2, 1/4, 1/8, 1/16, 1/32 |
-| Antarmuka | STEP/DIR + MODE0-2 saja, **tanpa UART** |
+| Parameter                              | Nilai                                   |
+| -------------------------------------- | --------------------------------------- |
+| Tegangan motor                         | **8.2 V - 45 V** (tidak bisa 5 V)       |
+| Arus per fasa tanpa pendingin          | ~1.5 A                                  |
+| Arus per fasa dengan pendingin memadai | 2.2 A                                   |
+| Sense resistor (carrier Pololu)        | 0.100 Ω                                 |
+| Microstep                              | full, 1/2, 1/4, 1/8, 1/16, 1/32         |
+| Antarmuka                              | STEP/DIR + MODE0-2 saja, **tanpa UART** |
 
 ### Set arus
 
@@ -268,14 +268,14 @@ V_REF         = Current limit / 2
 
 ### Tabel MODE
 
-| MODE0 | MODE1 | MODE2 | Resolusi |
-| --- | --- | --- | --- |
-| L | L | L | full step |
-| H | L | L | 1/2 |
-| L | H | L | 1/4 |
-| H | H | L | 1/8 |
-| L | L | H | 1/16 |
-| H | L | H | 1/32 |
+| MODE0 | MODE1 | MODE2 | Resolusi  |
+| ----- | ----- | ----- | --------- |
+| L     | L     | L     | full step |
+| H     | L     | L     | 1/2       |
+| L     | H     | L     | 1/4       |
+| H     | H     | L     | 1/8       |
+| L     | L     | H     | 1/16      |
+| H     | L     | H     | 1/32      |
 
 Pin mengambang = full step. Ini sering jadi penyebab "kok kasar banget".
 
@@ -313,9 +313,9 @@ t_rise = L x I / V_supply
 Untuk 17HS6401 (L = 6.2 mH, I = 1.7 A):
 
 | V_supply | t_rise |
-| --- | --- |
-| 12 V | 878 µs |
-| 24 V | 439 µs |
+| -------- | ------ |
+| 12 V     | 878 µs |
+| 24 V     | 439 µs |
 
 Satu siklus elektrik = 4 full-step. Di 24 V, ceiling teoretis (torsi nol) ada di
 sekitar 570 siklus/s = ~680 RPM; realistis dengan margin torsi sekitar sepertiganya,
@@ -346,9 +346,9 @@ Datasheet TMC2209 memberi rentang `VM` **4.75 V sampai 29 V**, dan 29 V adalah
 **batas absolut**, bukan batas kerja yang boleh disentuh terus-menerus.
 
 | Rail | Margin ke 29 V | Sisa setelah drop resistif (17HS6401, I x R = 5.1 V) |
-| --- | --- | --- |
-| 12 V | 17 V | 6.9 V (57%) |
-| 24 V | **5 V** | 18.9 V (79%) |
+| ---- | -------------- | ---------------------------------------------------- |
+| 12 V | 17 V           | 6.9 V (57%)                                          |
+| 24 V | **5 V**        | 18.9 V (79%)                                         |
 
 Dua kolom itu menarik ke arah berlawanan, dan di situlah seluruh keputusannya.
 Rail 12 V aman terhadap transien tapi boros: hampir separuh tegangannya habis
@@ -362,12 +362,12 @@ nominal**. Di 12 V hasilnya 24 V, masih di dalam jendela. Di 24 V hasilnya 48 V,
 jauh di luar. Itu sebabnya perpindahan 12 V ke 24 V bisa mematikan driver yang
 sebelumnya bertahun-tahun aman.
 
-| # | Mekanisme | Pemicu di meja kerja | Ada flag peringatan? |
-| --- | --- | --- | --- |
-| 1 | Dering LC saat hot plug | kabel daya dicolok ke PSU yang **sudah** hidup | **Tidak.** Durasi mikrodetik |
-| 2 | Flyback coil | motor dicabut/dicolok saat power on | **Tidak** |
-| 3 | Regenerasi / back-EMF | decel agresif, atau poros diputar tangan | Tidak, kecuali sempat memicu OT |
-| 4 | Kapasitor modul kurang rating | modul klon dengan cap 25 V atau 35 V | Tidak, gagal diam-diam |
+| #   | Mekanisme                     | Pemicu di meja kerja                           | Ada flag peringatan?            |
+| --- | ----------------------------- | ---------------------------------------------- | ------------------------------- |
+| 1   | Dering LC saat hot plug       | kabel daya dicolok ke PSU yang **sudah** hidup | **Tidak.** Durasi mikrodetik    |
+| 2   | Flyback coil                  | motor dicabut/dicolok saat power on            | **Tidak**                       |
+| 3   | Regenerasi / back-EMF         | decel agresif, atau poros diputar tangan       | Tidak, kecuali sempat memicu OT |
+| 4   | Kapasitor modul kurang rating | modul klon dengan cap 25 V atau 35 V           | Tidak, gagal diam-diam          |
 
 **Mekanisme 1 adalah yang paling cocok dengan laporan "mati tanpa peringatan".**
 Induktansi kabel supply dan kapasitor bulk membentuk rangkaian LC. Menyambung
@@ -504,22 +504,22 @@ dibatasi 24 V.
 
 Konfigurasi yang disarankan:
 
-| Item | Nilai | Alasan |
-| --- | --- | --- |
-| V_supply | 24 V | 2x headroom kecepatan vs 12 V; margin ke batas absolut tinggal 5 V, jadi wajib ikut prosedur bagian 6.4 |
-| `I_scale_analog` | `false` | hilangkan VREF sebagai variabel liar |
-| Mode chopper | spreadCycle (`en_spreadCycle(true)`) | torsi + akurasi, nol tuning |
-| Mode saat homing | stealthChop | syarat StallGuard4 |
-| Microstep | 16, `intpol(true)` | halus tanpa membebani step rate |
-| `toff` | 4 | |
-| `blank_time` | 24 | |
-| holdMultiplier | 0.4 - 0.5 | tahan posisi tanpa panas berlebih |
-| Arus J1/J3 (17HS4401/17HS2401, 1.7 A) | 1000-1200 mA RMS | ~60-70% rated, butuh heatsink |
-| Arus J2 (17HS6401, 1.7 A) | 1200-1400 mA RMS | butuh heatsink + kipas |
-| Kapasitor bulk per driver | ≥100 µF / 35 V low-ESR | angka minimum datasheet |
-| Kapasitor bulk tambahan di rail | 470-1000 µF / 50 V | serap energi regenerasi, lihat bagian 6.4 |
-| Urutan nyala | tombol OUTPUT PSU, bukan colokan | hilangkan dering hot plug, lihat bagian 6.2 |
-| `VCC_IO` | 3.3 V dari ESP32 | jangan dari `5VOUT` driver |
+| Item                                  | Nilai                                | Alasan                                                                                                  |
+| ------------------------------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------- |
+| V_supply                              | 24 V                                 | 2x headroom kecepatan vs 12 V; margin ke batas absolut tinggal 5 V, jadi wajib ikut prosedur bagian 6.4 |
+| `I_scale_analog`                      | `false`                              | hilangkan VREF sebagai variabel liar                                                                    |
+| Mode chopper                          | spreadCycle (`en_spreadCycle(true)`) | torsi + akurasi, nol tuning                                                                             |
+| Mode saat homing                      | stealthChop                          | syarat StallGuard4                                                                                      |
+| Microstep                             | 16, `intpol(true)`                   | halus tanpa membebani step rate                                                                         |
+| `toff`                                | 4                                    |                                                                                                         |
+| `blank_time`                          | 24                                   |                                                                                                         |
+| holdMultiplier                        | 0.4 - 0.5                            | tahan posisi tanpa panas berlebih                                                                       |
+| Arus J1/J3 (17HS4401/17HS2401, 1.7 A) | 1000-1200 mA RMS                     | ~60-70% rated, butuh heatsink                                                                           |
+| Arus J2 (17HS6401, 1.7 A)             | 1200-1400 mA RMS                     | butuh heatsink + kipas                                                                                  |
+| Kapasitor bulk per driver             | ≥100 µF / 35 V low-ESR               | angka minimum datasheet                                                                                 |
+| Kapasitor bulk tambahan di rail       | 470-1000 µF / 50 V                   | serap energi regenerasi, lihat bagian 6.4                                                               |
+| Urutan nyala                          | tombol OUTPUT PSU, bukan colokan     | hilangkan dering hot plug, lihat bagian 6.2                                                             |
+| `VCC_IO`                              | 3.3 V dari ESP32                     | jangan dari `5VOUT` driver                                                                              |
 
 Catat bahwa >1.0 A RMS **wajib** heatsink besar plus aliran udara. Kalau
 pendinginan tidak memungkinkan, turunkan ke 900 mA dan kompensasi dengan rasio
@@ -541,10 +541,10 @@ harmoniknya masuk rentang dengar.
 Untuk konfigurasi proyek ini (200 full-step/rev, microstep 16):
 
 | Kecepatan motor | Step rate | Nada yang terdengar |
-| --- | --- | --- |
-| 0.05 rev/s | 160 Hz | dengung rendah |
-| 0.2 rev/s | 640 Hz | nada tengah |
-| 1.0 rev/s | 3.2 kHz | melengking |
+| --------------- | --------- | ------------------- |
+| 0.05 rev/s      | 160 Hz    | dengung rendah      |
+| 0.2 rev/s       | 640 Hz    | nada tengah         |
+| 1.0 rev/s       | 3.2 kHz   | melengking          |
 
 Rentang kerja lengan robot jatuh persis di tengah pita audio. Itu sebabnya
 lengan robot "bernyanyi" saat bergerak. Karena akselerasi mengubah step rate

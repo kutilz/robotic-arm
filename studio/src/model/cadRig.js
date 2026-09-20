@@ -73,6 +73,102 @@ export const CAD_JOINTS = [
   { id: 'J6', p: [-65.55, -12.45, 630.56], a: [-0.002, -0.053, 0.999] },
 ];
 
+/* ============================================================================
+   KALIBRASI TWIN PER SENDI: arah putaran + trim home.
+
+   `dir` = arah putaran positif tiap sendi, RELATIF terhadap kaidah tangan kanan
+   pada sumbu `a` di atas. Sumbunya sendiri tidak boleh dibalik untuk keperluan
+   ini: `a` J5 dan J6 juga membentuk frame tool (lihat CAD_TCP_J6 dan tcpQuat)
+   dan ikut dipakai menghitung offset home J4, jadi menegatifkannya di
+   CAD_JOINTS akan menggeser TCP sekaligus memutar frame tool, bukan cuma
+   membalik arah gerak. Tanda di sini hanya masuk ke sumbu rotasi pivot dan ke
+   offset home yang sepadan, sehingga pose home tetap sama persis dan yang
+   berubah hanya ke mana sendi berjalan saat sudutnya positif.
+
+   `trim` = derajat yang DITAMBAHKAN ke sudut sendi sebelum digambar, dinyatakan
+   dalam satuan dan tanda yang sama persis dengan sudut yang dibaca operator.
+   Trim 180 di J6 berarti "sendi 0 di lengan sama dengan 180 di rantai CAD".
+   Ini yang membetulkan sendi yang di lengan ada di home tapi di twin tampil
+   bengkok, tanpa menyentuh titik sumbu hasil ukur CAD.
+
+   Kenapa dua duanya dibetulkan di TWIN dan bukan di firmware: sudut yang
+   dikirim studio harus tetap sama artinya dengan sudut di halaman bawaan ESP32
+   dan di data pengujian yang sudah terlanjur dicatat. Yang dibetulkan gambarnya,
+   bukan angkanya.
+
+   Angka di bawah bukan turunan CAD melainkan HASIL UJI DI LENGAN TERAKIT
+   12 Agu 2026, sendi per sendi: satu sendi diputar, arahnya dibandingkan dengan
+   twin, lalu dikonfirmasi operator.
+     J1  arah cocok
+     J2  terbalik            J3  terbalik
+     J4  arah cocok
+     J5  terbalik. Catatan: dir J5 sempat diset -1 lebih awal di hari yang sama
+         dari pengamatan sepintas; uji per sendi menunjukkan itu justru yang
+         membalik sendi yang sudah benar, jadi dikembalikan ke +1.
+     J6  twin ter-roll 180 deg terhadap lengan, DAN arahnya terbalik.
+
+   ---------------------------------------------------------------------------
+   J4 TETAP TANPA TRIM (trim[3] = 0), DAN ITU KEPUTUSAN, BUKAN KELALAIAN.
+
+   13 Agu 2026 J4 sempat digeser 180 lewat panel di mode SERVICE karena pergelangan
+   twin dikira salah gambar. Yang salah ternyata lengannya, dan pergelangan
+   fisiknya sudah dibetulkan; jadi twin dikembalikan ke orientasi CAD dan
+   geseran runtime itu dibuang (kunci localStorage twinCal dinaikkan ke v2).
+
+   Yang membuat keputusan ini bisa dipertanggungjawabkan bukan pendapat, tapi
+   hitungan: pose pick & place yang diajarkan operator di lengan hanya masuk
+   akal pada pergelangan yang sesuai CAD. Kalau pergelangan fisik benar benar
+   ter-roll 180, pose teach yang sama menaruh ujung jaw 32 sampai 57 mm DI BAWAH
+   permukaan meja, yaitu tabrakan yang tidak mungkin luput dari mata operator.
+   Karena itu J4 tanpa trim adalah satu satunya nilai yang konsisten dengan
+   pose yang benar benar berhasil dijalankan.
+
+   PERGELANGAN BARU SAJA DIBONGKAR PASANG. dir dan trim untuk J4, J5, dan J6 di
+   bawah diukur 12 Agu terhadap pergelangan versi LAMA. Nilainya sengaja tidak
+   ditebak ulang di sini (menebak ke arah yang salah persis itu yang memulai
+   kekacauan ini), tapi ketiganya WAJIB diuji ulang sebelum dipercaya:
+     1 sambungkan ke lengan, buka mode SERVICE, blok "kalibrasi twin"
+     2 putar J4, lalu J5, lalu J6 satu per satu lewat slider di mode RUTIN
+     3 sendi yang berlawanan arah: tekan tombol arah. Sendi yang di home tapi
+       tampil bengkok atau terbalik setengah putaran: setel trim (ada tombol
+       180 untuk kasus setengah putaran)
+     4 tekan `salin` dan tempel hasilnya menggantikan blok di bawah
+   Selama belum diuji ulang, trim 180 di J6 khususnya patut dicurigai: dia juga
+   sebuah setengah putaran di rakitan pergelangan yang sama.
+
+   Nilai runtime bisa disetel operator lewat blok "kalibrasi twin" di mode SERVICE
+   (features/twinCal.js) dan disimpan di localStorage; yang di bawah adalah
+   nilai bawaan yang dipakai kalau belum pernah disetel, dan satu satunya yang
+   ikut terbaca oleh verify_cad_rig.mjs, gambar skripsi, dan deck sidang.
+   ========================================================================== */
+export const TWIN_CAL_DEFAULT = {
+  dir: [1, -1, -1, 1, 1, -1],
+  trim: [0, 0, 0, 0, 0, 180],
+};
+
+let jointDir = TWIN_CAL_DEFAULT.dir.slice();
+let jointTrim = TWIN_CAL_DEFAULT.trim.slice();
+
+/** salinan kalibrasi twin yang sedang berlaku. */
+export function getTwinCal() { return { dir: jointDir.slice(), trim: jointTrim.slice() }; }
+
+/** Setel kalibrasi twin. Nilai yang bukan angka diabaikan (bukan dijadikan 0)
+ *  supaya input UI yang setengah diketik tidak diam diam mereset sendi lain. */
+export function setTwinCal({ dir, trim } = {}) {
+  if (Array.isArray(dir)) {
+    dir.forEach((v, i) => { if (i < 6 && (v === 1 || v === -1)) jointDir[i] = v; });
+  }
+  if (Array.isArray(trim)) {
+    trim.forEach((v, i) => { if (i < 6 && Number.isFinite(+v)) jointTrim[i] = +v; });
+  }
+}
+
+/** true kalau kalibrasi runtime sudah menyimpang dari nilai bawaan di file ini. */
+export function twinCalDirty() {
+  return jointDir.some((v, i) => v !== TWIN_CAL_DEFAULT.dir[i])
+    || jointTrim.some((v, i) => v !== TWIN_CAL_DEFAULT.trim[i]);
+}
+
 /* TCP = titik tengah ujung wedge jaw saat jaw tertutup (docs/bom-main-assembly.md
    bagian 5). Dinyatakan di frame J6: origin = pusat pergelangan, z' = sumbu J6,
    x' = sumbu J5, y' = z' x x'. Ujung jaw dipilih (bukan tengah permukaan
@@ -235,6 +331,26 @@ export function computeHomeOffsets(P, A) {
   ];
 }
 
+/** Offset home FINAL yang dipakai poseRig: offset CAD dikalikan arah sendi,
+ *  lalu ditambah trim.
+ *
+ *  Kenapa dikalikan, bukan dipakai apa adanya: rotasi pivot dihitung
+ *  R(s*A, theta + h') = R(A, s*theta + s*h'), jadi h' = s*h membuat suku
+ *  home-nya kembali persis h dan yang tersisa cuma theta yang berbalik arah.
+ *  Kalau offset tidak ikut dibalik, pose home sendi yang dibalik akan meleset
+ *  dua kali sudut offsetnya.
+ *
+ *  Trim justru TIDAK dikalikan s, dan itu disengaja: s*(theta + trim) membuat
+ *  trim berperilaku persis seperti sudut yang ditambahkan ke sendi, yaitu satu
+ *  satunya arti yang bisa dibaca operator tanpa menghitung tanda dulu. */
+export function homeOffsets(P, A) {
+  const d2r = Math.PI / 180;
+  return computeHomeOffsets(
+    P || CAD_JOINTS.map(j => vec(j.p)),
+    A || CAD_JOINTS.map(j => vec(j.a).normalize()),
+  ).map((h, i) => h * jointDir[i] + jointTrim[i] * d2r);
+}
+
 /** TCP di frame CAD: pusat pergelangan + CAD_TCP_J6 diputar ke frame J6. */
 export function cadTcpPoint(P, A) {
   const zc = A[5].clone().normalize();               // sumbu J6
@@ -290,7 +406,7 @@ export function linkOf(c, name, warn) {
 export function buildChain() {
   const Pc = CAD_JOINTS.map(j => vec(j.p));                 // titik sumbu, frame CAD
   const Ac = CAD_JOINTS.map(j => vec(j.a).normalize());     // arah sumbu, frame CAD
-  const homeOff = computeHomeOffsets(Pc, Ac);
+  const homeOff = homeOffsets(Pc, Ac);
   const tcpCad = cadTcpPoint(Pc, Ac);
 
   const P = Pc.map(cadToStudio);                            // titik sumbu, frame studio
@@ -324,7 +440,13 @@ export function buildChain() {
     const pv = new THREE.Group();
     pv.name = `cadPivot${CAD_JOINTS[i].id}`;
     pv.position.copy(P[i]).sub(i === 0 ? new THREE.Vector3() : P[i - 1]);
-    pv.userData.axis = A[i];
+    // sumbu ROTASI (sudah bertanda). Frame tool di bawah sengaja tetap memakai
+    // A[4]/A[5] yang asli, karena yang dibalik cuma arah gerak sendi.
+    // `axisCad` = sumbu tanpa tanda, disimpan supaya recalibrate() bisa
+    // membalik arah sendi tanpa membangun ulang rantai (dan tanpa memuat ulang
+    // GLB 1,8 MB) saat operator menyetel kalibrasi di mode SERVICE.
+    pv.userData.axisCad = A[i].clone();
+    pv.userData.axis = A[i].clone().multiplyScalar(jointDir[i]);
     parent.add(pv);
     mkLink(i + 1, pv, P[i]);
     pivots.push(pv);
@@ -387,4 +509,19 @@ export function poseRig(pivots, homeOff, anglesDeg) {
   for (let i = 0; i < pivots.length; i++) {
     pivots[i].quaternion.setFromAxisAngle(pivots[i].userData.axis, anglesDeg[i] * d2r + homeOff[i]);
   }
+}
+
+/** Terapkan kalibrasi twin yang berlaku sekarang ke rantai yang SUDAH dibangun.
+ *  Sumbu rotasi tiap pivot dan isi `homeOff` ditulis ulang di tempat, jadi mesh
+ *  CAD, marker massa, dan node TCP tidak perlu disusun ulang. Pemanggil wajib
+ *  mem-pose ulang setelahnya (rig.js melakukannya lewat applyPose).
+ *  `homeOff` dimutasi in place karena rig.js dan kinematics.js memegang
+ *  referensi array yang sama. */
+export function recalibrateChain(pivots, homeOff) {
+  const off = homeOffsets();
+  for (let i = 0; i < pivots.length; i++) {
+    homeOff[i] = off[i];
+    pivots[i].userData.axis.copy(pivots[i].userData.axisCad).multiplyScalar(jointDir[i]);
+  }
+  return homeOff;
 }

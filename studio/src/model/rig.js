@@ -15,7 +15,7 @@
 import { THREE, v3, makeLabel, scene } from '../core/viewport.js';
 import { STATE, MASSES } from '../config/arm.js';
 import { SceneColors } from '../core/theme.js';
-import { buildChain, attachParts, CAD_JOINTS } from './cadRig.js';
+import { buildChain, attachParts, recalibrateChain, CAD_JOINTS } from './cadRig.js';
 
 export const world = {
   root: null, chain: null, pivots: [], links: [], partHosts: [],
@@ -148,6 +148,19 @@ export function buildRig() {
     world.massNodes.push(node);
   }
   return world;
+}
+
+/** Terapkan ulang kalibrasi twin (arah + trim per sendi) ke rantai yang sudah
+ *  berdiri. Dipanggil mode SERVICE tiap kali operator membalik arah atau menggeser
+ *  trim, jadi hasilnya terlihat seketika tanpa memuat ulang halaman.
+ *
+ *  `jointRefs[i].axis` ikut disegarkan: kinematics.js memakainya untuk arah
+ *  torsi gravitasi, dan sumbu yang tertinggal di arah lama akan membuat tanda
+ *  torsi terbalik pada sendi yang baru saja dibalik. */
+export function recalibrateTwin() {
+  if (!world.pivots.length) return;
+  recalibrateChain(world.pivots, world.homeOff);
+  world.jointRefs.forEach((jr, i) => jr.axis.copy(world.pivots[i].userData.axis));
 }
 
 /* ============================================================================

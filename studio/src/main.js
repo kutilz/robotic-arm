@@ -4,9 +4,9 @@
    Model digital twin + jog/IK, timeline, demo, bridge WS, engineering drawer.
    ========================================================================== */
 import './styles/theme.css';
-import { mount, startLoop } from './core/viewport.js';
+import { mount, startLoop, scene } from './core/viewport.js';
 import { STATE } from './config/arm.js';
-import { buildRig, applyExplode } from './model/rig.js';
+import { buildRig, applyExplode, world } from './model/rig.js';
 import { loadCadModel, onCadStatus } from './model/cadModel.js';
 import { applyPose } from './model/kinematics.js';
 import { refreshVisToggles } from './features/viewToggles.js';
@@ -14,6 +14,9 @@ import { buildDataPanel } from './features/dataPanel.js';
 import { initLegend, initStatusCard, updateHud } from './ui/hud.js';
 import { refreshJogEnabled, goHome } from './features/jog.js';
 import { buildControlCard, toggleGizmo, syncGizmoUI } from './features/controlCard.js';
+import { loadTwinCal } from './features/twinCal.js';
+import { selamatkanDariPortLain } from './features/storageRescue.js';
+import { runnerEstop } from './features/runner.js';
 import { buildScenePanel, buildIconStrip, setCamPreset } from './features/scenePanel.js';
 import { buildGizmo } from './features/viewCube.js';
 import { initPathPreview } from './features/pathPreview.js';
@@ -26,6 +29,21 @@ import { icon } from './ui/icons.js';
 const stage = document.getElementById('stage');
 mount(stage);
 
+/* Hasil kerja yang tertinggal di port localhost lain ditarik ke sini dulu.
+   Sengaja TIDAK ditunggu (tanpa top-level await): aplikasi boot seperti biasa,
+   dan kalau ternyata ada yang ditemukan halaman dimuat ulang sekali supaya
+   timeline dan runner membacanya dari awal. Rinciannya di storageRescue.js. */
+selamatkanDariPortLain().then(({ n, dari }) => {
+  if (!n) return;
+  console.log(`[armstudio] ${n} kunci penyimpanan ditarik dari ${dari.join(', ')}; memuat ulang.`);
+  location.reload();
+});
+
+// Kalibrasi twin dibaca SEBELUM rantai dibangun: arah sendi dan trim home ikut
+// dihitung di buildChain(), jadi memuatnya sesudah itu berarti frame pertama
+// digambar dengan kalibrasi lama.
+loadTwinCal();
+
 // model: rantai sendi + overlay dibangun dari sumbu terukur, jadi studio sudah
 // bisa dipakai penuh sebelum (atau tanpa) mesh CAD. Mesh-nya dimuat duluan
 // karena CAD adalah tampilan default.
@@ -33,6 +51,15 @@ buildRig();
 initPathPreview();
 initTcpDrag();
 loadCadModel();
+
+/* Kait inspeksi untuk perkakas uji (tools/), BUKAN API untuk kode aplikasi.
+   Alasannya konkret: verify_cad_rig.mjs membuktikan rantainya benar di Node,
+   tapi ia tidak menyentuh satu pun tombol, jadi ia tidak bisa membedakan
+   "kalibrasi benar" dari "tombol kalibrasi tidak tersambung ke apa pun". Uji
+   peramban butuh cara membaca sumbu pivot yang SEDANG dipakai render, dan
+   membacanya dari piksel adalah cara paling mudah untuk lolos palsu. Hanya
+   dibaca; menulis lewat sini tidak akan memicu applyPose. */
+window.__armstudio = { world, scene, STATE };
 
 // panel-panel floating
 buildScenePanel(document.getElementById('scenePanel'));
@@ -64,7 +91,7 @@ function setEstop(on, fromHw = false) {
   STATE.estop = on;
   estopBtn.classList.toggle('tripped', on);
   estopBtn.textContent = on ? 'RESET' : 'E-STOP';
-  if (on) stopPlayback();
+  if (on) { stopPlayback(); runnerEstop(); }   // playback 3D DAN rutin hardware
   if (!fromHw) {
     if (on) sendEstop();
     else sendResume();   // RESET melepas e-stop di hardware secara eksplisit

@@ -373,3 +373,90 @@ Onshape dan sudah ditangani oleh kalibrasi offset home di digital twin.
 5. **Arah putar output cycloidal.** Mode housing output membuat output searah
    input, kebalikan dari mode hub. Perlu dipastikan cocok dengan tanda arah
    di firmware dan di studio.
+
+### Penyimpangan yang diketahui dan sengaja dibiarkan (2026-08-05)
+
+Revisi `Main Assembly (Complete v2)` menebalkan crown, di CAD dan di lengan
+fisik. Yang paling berdampak ada di J4, dan efeknya menaikkan seluruh susunan
+di atasnya. Dibandingkan revisi 2026-08-03 yang jadi sumber angka di seluruh
+dokumen ini:
+
+| Besaran                  | Revisi 03 Agu      | Revisi 05 Agu (v2)  |
+| ------------------------ | ------------------ | ------------------- |
+| Crown J4 bawah           | O53,5 x 4,8        | O57,4 x **5,8**     |
+| Crown J4 atas            | O53,4 x 4,8        | O56,1 x **5,9**     |
+| Crown J2 (x2)            | O64,6 x 4,8        | O64,6 x 5,0 dan 5,1 |
+| Crown J3                 | O43,8 x 5,0        | O43,8 x 5,3         |
+| Pusat pergelangan (z)    | 630,56 mm          | sekitar 632,8 mm    |
+| d4 (J3 ke pergelangan)   | 269,76 mm          | sekitar 271,96 mm   |
+| Ujung jaw / tinggi total | 805,7 / 815,7 mm   | 807,9 / 817,9 mm    |
+
+Geserannya bertingkat, bukan seragam (cycloid disk +0,2 mm, crown atas +1,8 mm,
+encoder spacer +2,2 mm, wrist link +2,3 mm), yang menandai susunan tebal berubah
+dan bukan rakitan bergeser.
+
+**Yang sengaja TIDAK diubah, beserta alasannya:**
+
+- **Naskah skripsi.** Jangkauan dilaporkan sebagai hasil pengukuran, dan 2,2 mm
+  pada lengan 733 mm berada di dalam ketelitian cara mengukurnya, yaitu 0,3
+  persen. Tidak ada margin torsi, status lulus, maupun simpulan Bab IV dan V yang
+  berbalik arah karenanya. Draf dikumpulkan 6 Agustus 2026.
+- **`studio/src/config/arm.js`** masih memakai d4 = 270 mm. Tidak berpengaruh
+  pada hasil yang dilaporkan, sebab sync error digital twin diukur di ruang sendi
+  dalam satuan derajat dan tidak melewati d4. Penyesuaian dikerjakan sesudah
+  sidang.
+- **Angka di bagian 1 sampai 5 dokumen ini** tetap merujuk revisi 03 Agustus,
+  karena revisi itulah yang menjadi sumber angka naskah.
+
+Pekerjaan susulan sesudah sidang: jalankan `tools/measure_cad_geometry.py` pada
+revisi v2, perbarui d4 di konfigurasi studio, lalu perbarui bagian 5 dokumen ini.
+
+---
+
+## 7. Rekap slicer: filamen dan waktu cetak
+
+Sumber: panel estimasi proyek `onshape/3d print robot arm.3mf` di Bambu Studio,
+dibaca 4 Agustus 2026. Sepuluh plate, profil cetak seragam (Bambu Lab A1,
+nozzle 0,4 mm, layer 0,16 mm, dua dinding, infill 15% gyroid, PLA+ eSUN).
+
+### Filamen
+
+| Bagian  | Panjang  | Massa      |
+| ------- | -------- | ---------- |
+| Model   | 347,90 m | 1054,36 g  |
+| Support | 0,94 m   | 2,83 g     |
+| **Total** | **348,83 m** | **1057,20 g** |
+
+Support cuma 0,27 persen dari total massa, jadi orientasi cetak tiap part
+memang sudah dipilih supaya nyaris tidak butuh penopang.
+
+Angka 1054,36 g yang dipakai mengalibrasi model massa di `tools/measure_print_mass.py`
+adalah **massa model saja**, tidak termasuk 2,83 g support. Ini yang benar,
+karena support dibuang setelah cetak dan tidak ikut jadi massa lengan.
+
+Biaya filamen menurut slicer: 26,42 (satuan mata uangnya ikut setelan slicer,
+perlu dipastikan sebelum dikutip di draf).
+
+### Waktu cetak per plate
+
+| Plate | Waktu   |
+| ----- | ------- |
+| 1     | 6j 28m  |
+| 2     | 11j 01m |
+| 3     | 5j 31m  |
+| 4     | 5j 33m  |
+| 5     | 5j 03m  |
+| 6     | 5j 01m  |
+| 7     | 4j 46m  |
+| 8     | 4j 14m  |
+| 9     | 3j 48m  |
+| 10    | 2j 13m  |
+| **Total** | **53j 38m** |
+
+Slicer melaporkan total 2d5h37m, yaitu 53 jam 37 menit. Penjumlahan kolom di
+atas memberi 53 jam 38 menit; selisih satu menit berasal dari pembulatan
+per plate. Yang dilaporkan di draf adalah **53 jam 38 menit** karena angka itu
+yang dapat diperiksa ulang dari kolomnya.
+
+Waktu ini adalah waktu mesin, bukan waktu kalender: belum termasuk penggantian
+plate, pembersihan, dan cetak ulang part yang gagal.

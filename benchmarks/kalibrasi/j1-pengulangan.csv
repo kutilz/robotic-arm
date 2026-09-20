@@ -1,0 +1,11 @@
+sesi,tahap,ulangan,arah,sasaran_deg,encoder_deg,galat_deg
+2026-08-07T20:39,mekanis-openloop,1,naik,0.00,0.010,+0.010
+2026-08-07T20:39,mekanis-openloop,1,turun,0.00,0.760,+0.760
+2026-08-07T20:39,mekanis-openloop,2,naik,0.00,0.090,+0.090
+2026-08-07T20:39,mekanis-openloop,2,turun,0.00,0.700,+0.700
+2026-08-07T20:39,mekanis-openloop,3,naik,0.00,0.090,+0.090
+2026-08-07T20:39,mekanis-openloop,3,turun,0.00,0.699,+0.699
+2026-08-07T20:39,mekanis-openloop,4,naik,0.00,0.093,+0.093
+2026-08-07T20:39,mekanis-openloop,4,turun,0.00,0.700,+0.700
+2026-08-07T20:39,mekanis-openloop,5,naik,0.00,0.180,+0.180
+2026-08-07T20:39,mekanis-openloop,5,turun,0.00,0.688,+0.688

@@ -28,6 +28,7 @@ import {
   buildChain, attachParts, poseRig, nameKey, CAD_JOINTS, CAD_PART_N,
 } from '../src/model/cadRig.js';
 import { MASSES, POSE_PRESETS, DEMO_POSES, CIRCLE_SEED, STATE } from '../src/config/arm.js';
+import { staticRoutines, posesOf, ROUTINES } from '../src/config/routines.js';
 
 const STUDIO = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const GLB = resolve(STUDIO, 'public/main-assembly.glb');
@@ -126,11 +127,17 @@ checkNum('sumbu J1 di titik asal (z)', P[0].z, 0, 0.01);
 
 console.log('\n== sumbu sendi di ruang studio (home) ==');
 checkDir('J1 yaw  = +Y', wax(0), [0, 1, 0]);
-checkDir('J2 pitch = +X', wax(1), [1, 0, 0]);
-checkDir('J3 pitch = +X', wax(2), [1, 0, 0]);
+/* J2 dan J3 = -X, bukan +X: dir keduanya -1 (lihat TWIN_CAL_DEFAULT). Sumbu
+   CAD-nya sendiri tetap +X; yang bertanda di sini sumbu ROTASI pivot. */
+checkDir('J2 pitch = -X (dir -1)', wax(1), [-1, 0, 0]);
+checkDir('J3 pitch = -X (dir -1)', wax(2), [-1, 0, 0]);
 checkDir('J4 roll  = +Y', wax(3), [0, 1, 0]);
 checkDir('J5 pitch = +X', wax(4), [1, 0, 0], 0.02);
-checkDir('J6 roll  = +Y', wax(5), [0, 1, 0], 0.02);
+/* J6 = -Y, bukan +Y: TWIN_CAL_DEFAULT.dir[5] = -1 membalik arah putaran
+   positifnya supaya twin berputar searah dengan servo di lengan terakit. Yang
+   dicek di sini sumbu ROTASI pivot (sudah bertanda), sedangkan frame tool tetap
+   memakai sumbu J6 asli. */
+checkDir('J6 roll  = -Y (dir -1)', wax(5), [0, -1, 0], 0.02);
 
 console.log('\n== panjang link (mm) ==');
 checkNum('a1  jarak tegak lurus sumbu J1 -> J2', axisDist(0, 1), 65.85, 0.05);
@@ -174,18 +181,27 @@ check('J1 +90 memutar pergelangan mengelilingi +Y',
   Math.abs(w.y - homeWrist.y) < 0.5 && w.distanceTo(homeWrist) > 1,
   `pergelangan ${f3(homeWrist)} -> ${f3(w)}`);
 
+/* J2 dan J3 mendatar ke -Z, bukan +Z: dir keduanya -1 sejak 12 Agu 2026 (uji
+   per sendi di lengan terakit).
+
+   -Z adalah arah DEPAN, yaitu ke meja. Jadi dua baris di bawah sekaligus
+   menetapkan konvensi seluruh repo: pose kerja yang menjulur ke depan bersudut
+   J2/J3 POSITIF. Catatan lama di sini menyimpulkan kebalikannya dan preset,
+   demo, serta rutin sempat dibalik tandanya mengikuti kesimpulan itu; semuanya
+   berakhir di belakang lengan sampai dibetulkan 13 Agu 2026. */
 setPose([0, 90, 0, 0, 0, 0]);
-checkDir('J2 +90 membuat lengan atas mendatar ke +Z', wp(2).clone().sub(wp(1)), [0, 0, 1]);
+checkDir('J2 +90 membuat lengan atas mendatar ke -Z', wp(2).clone().sub(wp(1)), [0, 0, -1]);
 
 setPose([0, 0, 90, 0, 0, 0]);
-checkDir('J3 +90 menekuk siku ke +Z', wp(3).clone().sub(wp(2)), [0, 0, 1]);
+checkDir('J3 +90 menekuk siku ke -Z', wp(3).clone().sub(wp(2)), [0, 0, -1]);
 
 setPose([0, 0, 0, 90, 0, 0]);
 w = wp(3);
 check('J4 +90 memutar gripper, pusat pergelangan diam',
   w.distanceTo(homeWrist) < 0.01 && partPos(6, 'MG90S').distanceTo(homeServo) > 20,
   `geser MG90S ${partPos(6, 'MG90S').distanceTo(homeServo).toFixed(1)} mm`);
-// rotasi +90 deg terhadap +Y memetakan +X ke -Z (kaidah tangan kanan)
+// rotasi +90 deg terhadap +Y memetakan +X ke -Z (kaidah tangan kanan), dan
+// sumbu rotasi J5 di home memang +X.
 checkDir('J4 +90 memutar sumbu J5 ke -Z', wax(4), [0, 0, -1], 0.02);
 
 setPose([0, 0, 0, 0, 90, 0]);
@@ -224,26 +240,124 @@ check('payload ditempel di node TCP', payload.at === 'tcp',
   'offset lateral tool 15,7 mm tidak boleh diwakili `along` di sumbu +Y saja');
 
 /* ---------------- preset & trajektori demo ---------------- */
-// Preset dan demo dulu disusun untuk rantai lama yang 85 mm lebih pendek di
-// pergelangan dan 200 mm lebih tinggi di base, jadi banyak yang jatuh menembus
-// meja. Di sini tiap pose dicek: TCP tetap di atas grid, tidak melewati limit
-// sendi, dan masih di dalam jangkauan.
-const CLEAR = 25;   // mm, jarak aman minimum TCP ke grid
+/* Tiap pose dicek: tidak ada PART yang menembus meja, sudut di dalam limit
+   sendi, TCP masih di dalam jangkauan, dan J1 di dalam sektor kerja.
+
+   Dulu yang dijaga cuma tinggi TCP (minimal 25 mm). Itu penjaga yang salah
+   sasaran untuk lengan ini: rutin ambil MEMANG harus membawa ujung jaw sampai
+   15 mm di atas meja, sedangkan yang benar benar berbahaya justru part yang
+   BUKAN TCP. Contohnya pada sumbu tool mendatar, ujung jaw masih 15 mm di atas
+   meja tetapi servo MG996R di pergelangan sudah 26 mm DI BAWAH permukaan meja.
+   Jadi yang diukur sekarang titik terendah seluruh link bergerak, dari bbox
+   mesh CAD-nya langsung. */
+const PART_CLEAR = 5;   // mm, sisa minimum part terendah ke permukaan meja
+/* L2 (housing bahu) dilewati: dia duduk permanen ~35 mm di atas meja tepat di
+   kaki lengan dan tidak bisa menabrak apa pun di bidang kerja, tapi kalau ikut
+   dihitung dia SELALU jadi yang terendah dan menutupi part yang betulan
+   bergerak di atas meja. */
+const MOVING_LINKS = [3, 4, 5, 6];
+/** titik terendah semua part link bergerak pada pose yang sedang di-set. */
+function lowestPart() {
+  let y = Infinity, name = '';
+  const b = new THREE.Box3();
+  for (const li of MOVING_LINKS) {
+    for (const part of partHosts[li].children) {
+      b.setFromObject(part);
+      if (b.min.y < y) { y = b.min.y; name = part.name; }
+    }
+  }
+  return { y, name };
+}
+
+/* Sektor kerja di meja ini (13 Agu 2026): J1 cuma boleh 0 sampai -90, yaitu
+   dari lurus ke depan (kertas milimeter) sampai 90 derajat ke kanan. Batas ini
+   BUKAN limit mekanis - JDEF dan firmware dua-duanya masih mengizinkan +-180 -
+   jadi tidak ada yang menjaganya selain pemeriksaan ini. */
+const J1_MIN = -90, J1_MAX = 0, J1_TOL = 0.5;
+
 function auditPoses(title, list, names) {
   let bad = 0;
   for (let i = 0; i < list.length; i++) {
     const a = list[i];
     setPose(a);
     const t = tcp();
+    const lp = lowestPart();
     const overLimit = a.some((v, k) => v < STATE.joints[k].min || v > STATE.joints[k].max);
-    const low = t.y < CLEAR;
+    const low = lp.y < PART_CLEAR;
     const far = t.distanceTo(wp(1)) > geo.reachFromJ2 + 1;
-    if (overLimit || low || far) bad++;
-    console.log(`     ${String(names ? names[i] : '#' + i).padEnd(12)} TCP ${f3(t)}`
-      + `${low ? (t.y < 0 ? '  MENEMBUS MEJA' : '  TERLALU DEKAT MEJA') : ''}`
-      + `${overLimit ? '  DI LUAR LIMIT' : ''}${far ? '  DI LUAR JANGKAUAN' : ''}`);
+    const outSector = a[0] < J1_MIN - J1_TOL || a[0] > J1_MAX + J1_TOL;
+    if (overLimit || low || far || outSector) bad++;
+    console.log(`     ${String(names ? names[i] : '#' + i).padEnd(22)} TCP ${f3(t)}`
+      + `  terendah ${lp.y.toFixed(0).padStart(4)} mm (${lp.name})`
+      + `${low ? (lp.y < 0 ? '  MENEMBUS MEJA' : '  TERLALU DEKAT MEJA') : ''}`
+      + `${overLimit ? '  DI LUAR LIMIT' : ''}${far ? '  DI LUAR JANGKAUAN' : ''}`
+      + `${outSector ? `  J1 ${a[0]} DI LUAR SEKTOR ${J1_MIN}..${J1_MAX}` : ''}`);
   }
   check(`${title}: semua pose aman`, bad === 0, `${list.length - bad}/${list.length} oke`);
+  setPose(HOME);
+}
+
+/* ---------------------------------------------------------------------------
+   SERVO MENDAHULUI STEPPER.
+
+   Satu goto tidak dieksekusi sebagai satu gerakan. J5/J6 servo MG996R ditulis
+   ke target seketika oleh loop firmware (~0,2 s per 60 deg), sedangkan stepper
+   J1..J4 jalan pada profil kecepatan (8 dps saat TEACH, 25 dps saat RUN), yaitu
+   20 sampai 60 kali lebih lambat, dan masing masing dengan waktu tempuhnya
+   sendiri karena tidak ada koordinasi antar sendi di firmware. Akibatnya pose
+   antara yang benar benar dilewati lengan adalah "pergelangan sudah menekuk
+   penuh, lengan masih di tempat lama". Kalau tempat lama itu dekat meja,
+   gripper menghantam meja sebelum lengan sempat bergerak.
+
+   Di sini jalur itu disusun ulang apa adanya: J5/J6 langsung di target sejak
+   detik nol, tiap stepper berjalan sendiri sendiri pada dps yang sama, lalu
+   dicari titik terendah seluruh rakitan sepanjang jalur.
+
+   Yang dianggap gagal bukan sekadar "jalurnya lebih rendah dari ujungnya":
+   turun 20 mm di ketinggian 200 mm tidak berbahaya. Yang gagal adalah jalur
+   yang menembus lantai kerja (< PART_CLEAR), atau jalur yang melorot jauh di
+   bawah kedua ujungnya SEKALIGUS berada di dekat meja - yaitu persis pola
+   "servo menekuk duluan lalu menyapu meja".
+   --------------------------------------------------------------------------- */
+const DIP_TOL = 10;     // mm, seberapa dalam jalur boleh melorot di bawah ujungnya
+const DIP_ZONE = 60;    // mm, melorot baru dihitung berbahaya di bawah ketinggian ini
+const N_SERVO = [4, 5]; // J5, J6
+
+function pathLowest(a, b, n = 60, dps = 25) {
+  const dur = Math.max(...[0, 1, 2, 3].map(i => Math.abs(b[i] - a[i]) / dps));
+  let worst = Infinity, at = 0, name = '';
+  for (let s = 0; s <= n; s++) {
+    const t = dur * s / n;
+    const p = a.map((v, i) => {
+      if (N_SERVO.includes(i)) return b[i];        // servo: sudah di target
+      const d = b[i] - v, step = Math.sign(d) * dps * t;
+      return Math.abs(step) >= Math.abs(d) ? b[i] : v + step;
+    });
+    setPose(p);
+    const lp = lowestPart();
+    if (lp.y < worst) { worst = lp.y; at = dur ? s / n : 0; name = lp.name; }
+  }
+  return { y: worst, at, name };
+}
+
+function auditTransitions(title, list, names) {
+  let bad = 0;
+  for (let i = 1; i < list.length; i++) {
+    setPose(list[i - 1]); const la = lowestPart().y;
+    setPose(list[i]);     const lb = lowestPart().y;
+    const p = pathLowest(list[i - 1], list[i]);
+    const floor = p.y < PART_CLEAR;
+    const dip = p.y < Math.min(la, lb) - DIP_TOL && p.y < DIP_ZONE;
+    if (floor || dip) {
+      bad++;
+      const nm = names ? `${names[i - 1]} -> ${names[i]}` : `#${i - 1} -> #${i}`;
+      console.log(`     ${nm}: jalur turun ke ${p.y.toFixed(0)} mm @ ${(p.at * 100).toFixed(0)}%`
+        + ` (${p.name}), ujung ${la.toFixed(0)} dan ${lb.toFixed(0)} mm`
+        + `${floor ? '  MENABRAK MEJA' : '  MELOROT DI DEKAT MEJA'}`);
+    }
+  }
+  check(`${title}: tiap perpindahan aman walau servo sampai duluan`, bad === 0,
+    `${list.length - 1 - bad}/${list.length - 1} perpindahan oke`);
   setPose(HOME);
 }
 
@@ -255,11 +369,71 @@ for (const [key, list] of Object.entries(DEMO_POSES)) {
   auditPoses(`demo ${key}`, list);
 }
 
+/* Rutin hardware (config/routines.js). Ini yang benar-benar dikirim ke lengan,
+   jadi audit yang sama berlaku dan tiap langkah dinamai supaya kalau ada yang
+   gagal ketahuan langkah mana yang harus diperbaiki, bukan cuma nomornya. */
+for (const [key, r] of staticRoutines()) {
+  console.log(`\n== rutin: ${key} (${r.name}) ==`);
+  const poseSteps = r.steps.filter(s => Array.isArray(s.a));
+  const labels = poseSteps.map(s => s.label);
+  auditPoses(`rutin ${key}`, posesOf(r), labels);
+  /* Rutin `repeat` berputar: sesudah langkah terakhir dia kembali ke langkah
+     loopFrom, jadi perpindahan penutup siklus itu ikut dilalui lengan dan ikut
+     harus aman. Langkah gripper tidak menggeser sendi, jadi urutan pose saja
+     yang relevan. */
+  const seq = posesOf(r), seqLbl = labels.slice();
+  if (r.cycles > 1) {
+    const back = r.steps.slice(r.loopFrom || 0).filter(s => Array.isArray(s.a))[0];
+    if (back) { seq.push(back.a); seqLbl.push('(balik ke awal siklus)'); }
+  }
+  auditTransitions(`rutin ${key}`, seq, seqLbl);
+}
+
+/* J6 mentok di lengan fisik (12 Agu 2026): sudut J6 di rutin ditahan kecil
+   sampai pergelangan dibongkar. Batas ini dipertahankan di sini supaya tidak
+   diam diam naik lagi saat pose disetel ulang nanti. */
+const J6_MAX_ABS = 30;
+{
+  let worst = 0, where = '';
+  for (const [key, r] of staticRoutines())
+    for (const s of r.steps)
+      if (Array.isArray(s.a) && Math.abs(s.a[5]) > worst) { worst = Math.abs(s.a[5]); where = `${key}/${s.label}`; }
+  check(`J6 ditahan <= ${J6_MAX_ABS} deg (pergelangan mentok)`, worst <= J6_MAX_ABS,
+    `maks ${worst} deg di ${where || '-'}`);
+}
+
+/* Langkah gripper wajib memakai aksi yang dikenal runner. Salah ketik di sini
+   berarti langkah itu diam diam tidak melakukan apa apa saat rutin dijalankan. */
+{
+  const OK_GRIP = ['open', 'close'];
+  let bad = [];
+  for (const [key, r] of staticRoutines())
+    for (const s of r.steps) {
+      if (Array.isArray(s.a) === (s.grip !== undefined)) bad.push(`${key}/${s.label}: langkah harus punya a[] ATAU grip, tidak dua duanya`);
+      if (s.grip !== undefined && !OK_GRIP.includes(s.grip)) bad.push(`${key}/${s.label}: grip "${s.grip}" tidak dikenal`);
+    }
+  check('bentuk tiap langkah rutin sah', bad.length === 0, bad.length ? `\n     ${bad.join('\n     ')}` : '');
+}
+
+/* Rutin dinamis (pose dihitung IK saat dipilih) tidak bisa diaudit di sini,
+   tapi SEED-nya bisa: kalau seed sudah di luar limit, IK-nya mulai dari pose
+   yang mustahil dan hasilnya tidak bisa dipercaya. */
+{
+  const dyn = Object.entries(ROUTINES).filter(([, r]) => r.dynamic);
+  for (const [key, r] of dyn) {
+    console.log(`\n== rutin dinamis: ${key} (${r.name}) ==`);
+    auditPoses(`seed ${key}`, [r.line.seed], ['seed']);
+  }
+}
+
 console.log('\n== seed lingkaran IK ==');
 setPose(CIRCLE_SEED);
 const cSeed = tcp();
 // lingkaran radius 60 mm di bidang Z-Y; titik terendah = pusat - 60
-check('lingkaran radius 60 mm tidak menyentuh meja', cSeed.y - 60 > CLEAR,
+// 25 mm: sisa TCP, bukan sisa part. Lingkaran ini murni peragaan 3D dan
+// seluruh lintasannya ratusan mm di atas meja, jadi tidak perlu diaudit
+// se-ketat pose rutin yang benar benar dikirim ke lengan.
+check('lingkaran radius 60 mm tidak menyentuh meja', cSeed.y - 60 > 25,
   `pusat y ${cSeed.y.toFixed(0)} mm -> terendah ${(cSeed.y - 60).toFixed(0)} mm`);
 setPose(HOME);
 

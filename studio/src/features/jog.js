@@ -50,7 +50,7 @@ function flashUnreachable() {
   flashT = setTimeout(() => { el.dataset.warn = ''; el.textContent = 'step ' + stepLabel('cart'); }, 1200);
 }
 
-/* tombol tekan-tahan (auto-repeat ala Waldo jogging), juga dipakai tab CAL. */
+/* tombol tekan-tahan (auto-repeat ala Waldo jogging), juga dipakai mode SERVICE. */
 export function holdBtn(btn, fn) {
   let t = null, rpt = null;
   const start = (e) => { e.preventDefault(); if (STATE.estop) return; fn(); t = setTimeout(() => { rpt = setInterval(fn, 90); }, 320); };

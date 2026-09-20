@@ -1,0 +1,380 @@
+/* ============================================================================
+   Arm Pocket: tata letak khusus HP. BUKAN studio desktop yang di-resize.
+
+   Bedanya bukan lebar, tapi jenis tata letaknya. Desktop memakai panel floating
+   yang saling tumpang tindih di atas panggung 3D full-viewport; itu jalan
+   dengan mouse karena panel bisa dipindah dan ditutup, dan gagal total di layar
+   390 px karena tiga panel (262 + 296 + 360 px) memang tidak muat berdampingan.
+   Di sini tata letaknya kolom kaku: tiap bagian punya jatah tinggi sendiri dan
+   TIDAK ADA yang absolut kecuali overlay di dalam panggung. Konsekuensinya
+   tidak ada lebar layar yang bisa membuat dua kotak bertindihan.
+
+   Aturan yang dipegang seluruh berkas ini:
+   1 Satuan tinggi memakai dvh, bukan vh. Di Safari iOS vh dihitung terhadap
+     viewport TANPA bilah alamat, jadi tombol paling bawah (E-STOP) terdorong ke
+     bawah lipatan persis di keadaan paling sering: halaman baru dibuka.
+   2 Semua yang bisa ditekan minimal 44 px. Tombol 30 px milik desktop dirancang
+     untuk kursor yang presisi satu piksel.
+   3 Tinggi ditentukan dari bawah: E-STOP dan bilah tab dapat jatahnya lebih
+     dulu, panggung 3D mengambil sisanya. Kebalikannya (panggung dulu) membuat
+     E-STOP hilang di layar pendek.
+   ========================================================================== */
+@import './tokens.css';
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg2);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 14px;
+  -webkit-text-size-adjust: 100%;
+  /* Tap highlight biru bawaan + seleksi teks membuat UI kontrol terasa seperti
+     halaman dokumen. Yang boleh diseleksi cuma angka di tab DATA. */
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+  overscroll-behavior: none;
+}
+
+button { font: inherit; color: inherit; }
+
+/* ---------------- kerangka kolom ---------------- */
+#mapp {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  padding-top: env(safe-area-inset-top);
+}
+
+/* ---------------- header ---------------- */
+#mhead {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  height: 50px;
+  padding: 0 10px 0 13px;
+  background: var(--glass);
+  border-bottom: 1px solid var(--line);
+}
+.mlogo { color: var(--accent); font-size: 17px; line-height: 1; }
+.mtitle { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.mtitle b { font-size: 12.5px; letter-spacing: .06em; color: var(--head); }
+.mtitle span {
+  font-size: 10.5px; color: var(--muted); font-family: var(--mono);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* badge koneksi: kontrak DOM milik net/bridge.js (.badge/.dot/.lbl) */
+.badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 4px 8px; border-radius: 999px;
+  background: var(--panel); border: 1px solid var(--line);
+  font-family: var(--mono); font-size: 10px; letter-spacing: .04em;
+  color: var(--muted); white-space: nowrap;
+}
+.badge .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--dim); }
+.badge.on { color: var(--ok); border-color: rgba(34, 197, 94, .4); }
+.badge.on .dot { background: var(--ok); box-shadow: 0 0 7px var(--ok); }
+.badge.err { color: var(--over); border-color: rgba(239, 68, 68, .45); }
+.badge.err .dot { background: var(--over); }
+
+.mIco {
+  flex: 0 0 auto;
+  width: 40px; height: 40px;
+  display: grid; place-items: center;
+  border-radius: var(--r-md);
+  background: var(--panel); border: 1px solid var(--line);
+  color: var(--muted);
+}
+.mIco:active { background: var(--panel2); }
+
+/* ---------------- rantai interlock ---------------- */
+/* Versi ringkas dari bilah interlock desktop. Yang dipertahankan bukan
+   tampilannya melainkan sifatnya: lampu yang mati menjelaskan dirinya sendiri
+   di tempatnya, dan alasannya diambil dari blockedReason() yang sama dengan
+   jalur kirim, jadi UI tidak bisa berbeda pendapat dengan kenyataan. */
+#mChain {
+  flex: 0 0 auto;
+  display: flex; align-items: stretch; gap: 6px;
+  padding: 7px 10px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
+}
+.mLamp {
+  flex: 1 1 0; min-width: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 3px; height: 44px;
+  border-radius: var(--r-sm);
+  background: var(--panel); border: 1px solid var(--line);
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: .08em;
+  color: var(--dim);
+}
+.mLamp i { width: 8px; height: 8px; border-radius: 50%; background: var(--dim); }
+.mLamp.on { color: var(--ok); border-color: rgba(34, 197, 94, .4); background: rgba(34, 197, 94, .08); }
+.mLamp.on i { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+.mLamp.bad { color: var(--over); border-color: rgba(239, 68, 68, .45); background: rgba(239, 68, 68, .09); }
+.mLamp.bad i { background: var(--over); }
+.mLamp.act { border-color: var(--accent); }
+#mChain.tripped .mLamp { color: var(--over); border-color: rgba(239, 68, 68, .45); }
+
+/* ---------------- panggung 3D ---------------- */
+#mstage {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 120px;   /* di bawah ini panggung tidak lagi berguna; sheet yang mengalah */
+  overflow: hidden;
+  background: var(--bg2);
+}
+#mstage canvas { display: block; touch-action: none; }
+
+/* strip sudut aktual, melayang di dalam panggung (satu satunya overlay) */
+#mAngles {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  display: grid; grid-template-columns: repeat(6, 1fr);
+  gap: 1px;
+  padding: 5px 6px;
+  background: linear-gradient(to top, rgba(10, 14, 18, .92), rgba(10, 14, 18, 0));
+  pointer-events: none;
+}
+.mAng { text-align: center; font-family: var(--mono); line-height: 1.25; overflow: hidden; }
+.mAng b { display: block; font-size: 9px; color: var(--dim); font-weight: 600; letter-spacing: .04em; }
+.mAng span { display: block; font-size: 12px; color: var(--ink); }
+.mAng.untrusted span { color: var(--warn); }
+.mAng.untrusted b::after { content: '*'; color: var(--warn); }
+.mAng.stale span { color: var(--dim); }
+
+/* satu satunya kontrol kamera di layar: sisanya sudah dijawab sentuhan langsung
+   (satu jari orbit, dua jari cubit + geser, ditangani core/viewport.js). Yang
+   tidak bisa dijawab sentuhan adalah "kembalikan ke sudut yang enak dilihat",
+   dan itulah tombol ini. */
+#mView {
+  position: absolute; left: 10px; top: 10px;
+  min-width: 54px; height: 40px; padding: 0 10px;
+  border-radius: var(--r-md);
+  background: rgba(8, 12, 16, .85); border: 1px solid var(--line2);
+  color: var(--muted);
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .08em;
+  z-index: 4;
+}
+#mView:active { color: var(--accent); border-color: var(--accent); }
+
+/* di bawah tombol view, bukan di sampingnya: di lebar 320 px keduanya tidak
+   muat berdampingan dan yang terpotong justru pesannya. */
+#mCad {
+  position: absolute; left: 50%; top: 58px; transform: translateX(-50%);
+  max-width: calc(100% - 24px);
+  padding: 6px 11px; border-radius: var(--r-sm);
+  background: rgba(8, 12, 16, .9); border: 1px solid var(--line2);
+  font-size: 11px; line-height: 1.45; color: var(--muted);
+  pointer-events: none; display: none;
+}
+
+#mToast {
+  position: absolute; left: 10px; right: 10px; top: 58px;
+  padding: 9px 12px; border-radius: var(--r-md);
+  background: rgba(8, 12, 16, .95); border: 1px solid var(--line2);
+  font-size: 12px; line-height: 1.45; color: var(--ink);
+  opacity: 0; transform: translateY(-6px);
+  transition: opacity .18s, transform .18s;
+  pointer-events: none; z-index: 5;
+}
+#mToast.show { opacity: 1; transform: none; }
+#mToast.ok { border-color: rgba(34, 197, 94, .5); color: var(--ok); }
+#mToast.warn { border-color: rgba(245, 185, 66, .5); color: var(--warn); }
+#mToast.bad { border-color: rgba(239, 68, 68, .55); color: var(--over); }
+
+/* ---------------- lembar tab ---------------- */
+#msheet {
+  flex: 0 0 auto;
+  display: flex; flex-direction: column;
+  max-height: 42dvh;
+  background: var(--glass);
+  border-top: 1px solid var(--line);
+}
+html.collapsed #msheet { max-height: 22px; }
+.msheetGrip {
+  flex: 0 0 auto; height: 22px; width: 100%;
+  display: grid; place-items: center;
+  background: none; border: 0; padding: 0;
+}
+.msheetGrip::before {
+  content: ''; width: 38px; height: 4px; border-radius: 2px; background: var(--line2);
+}
+#msheetBody {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding: 2px 12px 12px;
+}
+html.collapsed #msheetBody { display: none; }
+
+/* ---------------- bilah tab ---------------- */
+#mtabs {
+  flex: 0 0 auto;
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  background: var(--bg);
+  border-top: 1px solid var(--line);
+}
+.mtab {
+  height: 50px;
+  background: none; border: 0;
+  border-top: 2px solid transparent;
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: .09em;
+  color: var(--dim);
+}
+.mtab.on { color: var(--accent); border-top-color: var(--accent); background: rgba(56, 189, 248, .07); }
+
+/* ---------------- E-STOP ---------------- */
+/* Hidup di LUAR sistem tab, dengan sengaja: tidak boleh ada satu pun keadaan
+   layar yang menyembunyikannya. Lebar penuh karena jari tidak perlu membidik. */
+#mestopBar {
+  flex: 0 0 auto;
+  padding: 8px 12px calc(8px + env(safe-area-inset-bottom));
+  background: var(--bg2);
+  border-top: 1px solid var(--line);
+}
+.mEstop {
+  width: 100%; height: 54px;
+  border-radius: var(--r-md);
+  background: #7f1d1d; border: 1px solid #b91c1c;
+  color: #fee2e2;
+  font-family: var(--mono); font-size: 15px; font-weight: 700; letter-spacing: .16em;
+}
+.mEstop:active { background: #991b1b; }
+.mEstop.tripped { background: var(--over); border-color: #fca5a5; color: #fff; }
+
+/* ---------------- isi lembar: primitif ---------------- */
+.mSec { margin-top: 10px; }
+.mSec > h4 {
+  margin: 0 0 7px;
+  font-family: var(--mono); font-size: 10px; font-weight: 600;
+  letter-spacing: .11em; color: var(--dim); text-transform: uppercase;
+}
+.mNote { margin: 7px 0 0; font-size: 11.5px; line-height: 1.5; color: var(--muted); }
+.mNote.warn { color: var(--warn); }
+.mNote.bad { color: var(--over); }
+.mNote.ok { color: var(--ok); }
+
+.mChips { display: flex; flex-wrap: wrap; gap: 7px; }
+.mChip {
+  flex: 1 1 calc(50% - 7px); min-height: 46px;
+  padding: 7px 11px; border-radius: var(--r-md);
+  background: var(--panel); border: 1px solid var(--line);
+  text-align: left; line-height: 1.3;
+}
+.mChip b { display: block; font-size: 12.5px; color: var(--head); }
+.mChip span { display: block; font-family: var(--mono); font-size: 9.5px; color: var(--dim); margin-top: 2px; }
+.mChip.on { border-color: var(--accent); background: rgba(56, 189, 248, .1); }
+.mChip:disabled { opacity: .45; }
+
+.mBtn {
+  min-height: 46px; padding: 0 14px;
+  border-radius: var(--r-md);
+  background: var(--panel); border: 1px solid var(--line);
+  color: var(--ink); font-size: 13px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+}
+.mBtn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.mBtn.danger { background: rgba(239, 68, 68, .14); border-color: rgba(239, 68, 68, .5); color: #fca5a5; }
+.mBtn:disabled { opacity: .4; }
+.mRow { display: flex; gap: 8px; }
+.mRow > * { flex: 1 1 0; }
+
+.mSeg { display: flex; gap: 0; border-radius: var(--r-md); overflow: hidden; border: 1px solid var(--line); }
+.mSeg button {
+  flex: 1 1 0; min-height: 42px;
+  background: var(--panel); border: 0; border-right: 1px solid var(--line);
+  font-family: var(--mono); font-size: 11.5px; color: var(--muted);
+}
+.mSeg button:last-child { border-right: 0; }
+.mSeg button.on { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
+
+/* jog: satu baris per sendi */
+.mJog { display: flex; align-items: center; gap: 8px; padding: 5px 0; }
+.mJog > .lab { flex: 0 0 78px; min-width: 0; }
+.mJog .lab b { display: block; font-size: 12px; color: var(--head); }
+.mJog .lab span { display: block; font-family: var(--mono); font-size: 10px; color: var(--dim); }
+.mJog .val {
+  flex: 1 1 auto; text-align: center;
+  font-family: var(--mono); font-size: 15px; color: var(--ink);
+}
+.mJog .val.lim { color: var(--warn); }
+.mStep {
+  flex: 0 0 52px; height: 46px;
+  border-radius: var(--r-md);
+  background: var(--panel); border: 1px solid var(--line);
+  font-size: 20px; line-height: 1; color: var(--ink);
+}
+.mStep:active { background: var(--accent); color: var(--accent-ink); }
+.mStep:disabled { opacity: .35; }
+
+/* tabel data */
+.mTbl { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 11.5px; -webkit-user-select: text; user-select: text; }
+.mTbl th, .mTbl td { padding: 6px 4px; text-align: right; border-bottom: 1px solid var(--line); }
+.mTbl th { color: var(--dim); font-weight: 600; font-size: 9.5px; letter-spacing: .06em; }
+.mTbl td:first-child, .mTbl th:first-child { text-align: left; color: var(--muted); }
+.mTbl td.hi { color: var(--head); }
+.mTbl td.warn { color: var(--warn); }
+
+/* langkah rutin */
+.mDots { display: flex; flex-wrap: wrap; gap: 4px; margin: 8px 0; }
+.mDot { width: 100%; max-width: 22px; height: 5px; border-radius: 3px; background: var(--line2); flex: 1 1 12px; }
+.mDot.done { background: var(--ok); }
+.mDot.cur { background: var(--accent); }
+
+/* ---------------- modal ---------------- */
+.mModal {
+  position: fixed; inset: 0; z-index: 50;
+  display: grid; place-items: end center;
+  background: rgba(4, 7, 10, .7);
+  padding: 0;
+}
+.mModal[hidden] { display: none; }
+.mModalCard {
+  width: 100%; max-height: 86dvh;
+  display: flex; flex-direction: column;
+  background: var(--bg); border-top: 1px solid var(--line2);
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.mModalCard > header {
+  flex: 0 0 auto;
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 10px 12px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.mModalCard > header b { flex: 1; font-size: 13.5px; color: var(--head); }
+#mModalBody { flex: 1 1 auto; overflow-y: auto; padding: 12px 16px 18px; }
+
+.mInput {
+  width: 100%; min-height: 46px;
+  padding: 0 12px; border-radius: var(--r-md);
+  background: var(--panel); border: 1px solid var(--line);
+  color: var(--ink); font-family: var(--mono); font-size: 13px;
+  -webkit-user-select: text; user-select: text;
+}
+
+/* ---------------- layar sangat pendek ---------------- */
+/* Landscape HP: yang mengalah adalah tinggi lembar tab dan tinggi tombol, BUKAN
+   keberadaan sesuatu. Rantai interlock khususnya tetap terlihat: dia yang
+   menjelaskan kenapa lengan tidak mau bergerak, dan menyembunyikannya di
+   orientasi tertentu berarti jawaban itu ikut hilang justru saat layar sedang
+   dipegang mendatar untuk memperlihatkan lengan ke orang. */
+@media (max-height: 560px) {
+  #msheet { max-height: 34dvh; }
+  #mChain { padding: 4px 10px; }
+  .mLamp { height: 34px; gap: 2px; font-size: 8.5px; }
+  .mLamp i { width: 6px; height: 6px; }
+  #mhead { height: 44px; }
+  .mEstop { height: 44px; font-size: 13px; }
+  #mestopBar { padding-top: 6px; }
+  #mtabs .mtab { height: 44px; }
+}

@@ -1,0 +1,32 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>armstudio storage rescue</title>
+<!--
+  Halaman kecil yang TIDAK memuat aplikasi. Gunanya satu: dibuka sebagai iframe
+  oleh studio yang berjalan di port lain, lalu menyerahkan isi localStorage
+  origin INI lewat postMessage.
+
+  Kenapa perlu: localStorage terikat origin, jadi hasil kerja yang tersimpan di
+  http://localhost:5173 tidak bisa dibaca oleh halaman di :5174 dengan cara apa
+  pun dari sisi kode. Satu satunya jembatan yang sah adalah halaman di origin
+  itu sendiri yang mengirimkan datanya. Ia hanya MEMBACA, hanya kunci berawalan
+  armstudio., dan hanya menjawab ke induk yang membukanya.
+-->
+<script>
+  (function () {
+    var out = {};
+    try {
+      for (var i = 0; i < localStorage.length; i++) {
+        var k = localStorage.key(i);
+        if (k && k.indexOf('armstudio.') === 0 && k.slice(-6) !== '.probe') {
+          out[k] = localStorage.getItem(k);
+        }
+      }
+    } catch (e) { /* penyimpanan diblokir: kirim kosong, bukan gagal */ }
+    if (window.parent !== window) {
+      window.parent.postMessage({ t: 'armstudio.dump', origin: location.origin, data: out }, '*');
+    } else {
+      document.write('<pre>' + JSON.stringify(out, null, 2).replace(/</g, '&lt;') + '</pre>');
+    }
+  })();
+</script>

@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="id" class="m">
+<head>
+  <meta charset="UTF-8" />
+  <!-- viewport-fit=cover: layout memakai env(safe-area-inset-*) supaya tombol
+       E-STOP tidak pernah tertutup home indicator iPhone. -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#0a0e12" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='26'%3E%E2%97%8E%3C/text%3E%3C/svg%3E" />
+  <title>Arm Pocket</title>
+</head>
+<body>
+  <!-- Layout HP: kolom kaku, TIDAK ada panel floating dan tidak ada yang
+       tumpang tindih pada lebar berapa pun. Urutannya dari atas:
+       header -> panggung 3D -> lembar tab -> bilah tab -> E-STOP.
+       E-STOP hidup di luar sistem tab: tidak boleh ada tab mana pun yang bisa
+       menyembunyikannya.
+
+       Kontrak DOM yang dipakai modul studio apa adanya:
+       #connBadge .dot/.lbl dibaca net/bridge.js (badge()); tanpa elemen ini
+       bridge tetap jalan (dia null-guard), tapi label koneksi tidak terlihat. -->
+  <div id="mapp">
+
+    <header id="mhead">
+      <span class="mlogo">◎</span>
+      <div class="mtitle">
+        <b>CYCLOIDAL 6-DOF</b>
+        <span id="mSub">memuat...</span>
+      </div>
+      <div id="connBadge" class="badge off" title="Status koneksi">
+        <span class="dot"></span><span class="lbl">off</span>
+      </div>
+      <button id="mLink" class="mIco" title="Koneksi"></button>
+    </header>
+
+    <!-- rantai izin gerak, versi ringkas dari bilah interlock desktop -->
+    <div id="mChain"></div>
+
+    <main id="mstage">
+      <button id="mView" title="Ganti sudut pandang">ISO</button>
+      <div id="mAngles"></div>
+      <div id="mToast"></div>
+      <div id="mCad"></div>
+    </main>
+
+    <section id="msheet">
+      <button id="mGrip" class="msheetGrip" aria-label="Buka/tutup panel"></button>
+      <div id="msheetBody"></div>
+    </section>
+
+    <nav id="mtabs"></nav>
+
+    <div id="mestopBar">
+      <button id="mEstop" class="mEstop">E-STOP</button>
+    </div>
+
+  </div>
+
+  <!-- lembar penuh layar (koneksi, detail langkah) -->
+  <div id="mModal" class="mModal" hidden>
+    <div class="mModalCard">
+      <header><b id="mModalTitle"></b><button id="mModalClose" class="mIco"></button></header>
+      <div id="mModalBody"></div>
+    </div>
+  </div>
+
+  <script type="module" src="/src/mobile/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,4 @@
+sesi,servo,us_min,us_max,deg_min,deg_max,deg_per_us,deg_per_us_asumsi,metode
+2026-08-10T08:15,J5,500,2500,-90.0,90.0,0.09,0.09,kolinearitas horn di us_min dan us_max
+2026-08-10T08:15,J6,500,2500,-90.0,90.0,0.09,0.09,kolinearitas horn di us_min dan us_max
+2026-08-10T08:15,GRIP,500,2500,0.0,180.0,0.09,0.09,kolinearitas horn di us_min dan us_max

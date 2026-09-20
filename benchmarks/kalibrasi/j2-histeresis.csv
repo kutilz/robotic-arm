@@ -1,0 +1,13 @@
+sesi,tahap,ulangan,arah,sasaran_deg,encoder_deg,galat_deg
+2026-08-12T14:11,BATAL-magnet-copot,1,naik,20.00,19.690,-0.310
+2026-08-12T14:11,BATAL-magnet-copot,1,turun,20.00,19.690,-0.310
+2026-08-12T14:11,BATAL-magnet-copot,2,naik,20.00,19.690,-0.310
+2026-08-12T14:11,BATAL-magnet-copot,2,turun,20.00,19.690,-0.310
+2026-08-12T14:11,BATAL-magnet-copot,3,naik,20.00,19.690,-0.310
+2026-08-12T14:11,BATAL-magnet-copot,3,turun,20.00,19.690,-0.310
+2026-08-12T14:19,magnet-terpasang,1,naik,20.00,19.885,-0.115
+2026-08-12T14:19,magnet-terpasang,1,turun,20.00,19.933,-0.067
+2026-08-12T14:19,magnet-terpasang,2,naik,20.00,19.860,-0.140
+2026-08-12T14:19,magnet-terpasang,2,turun,20.00,19.912,-0.088
+2026-08-12T14:19,magnet-terpasang,3,naik,20.00,19.860,-0.140
+2026-08-12T14:19,magnet-terpasang,3,turun,20.00,19.921,-0.079

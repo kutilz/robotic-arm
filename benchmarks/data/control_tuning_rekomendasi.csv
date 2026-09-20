@@ -1,0 +1,5 @@
+joint,kp_pakai,kp_mulai_osilasi,deadband_deg
+J1,0.80,,0.150
+J2,0.60,0.80,0.220
+J3,0.60,0.80,0.180
+J4,0.70,0.90,0.130

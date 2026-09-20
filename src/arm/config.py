@@ -213,7 +213,9 @@ class Motor:
 # duduk coaxial di pivot shoulder, moment arm ~0.
 # Holding torque dan arus dari datasheet yang dikonfirmasi user 2026-07-27.
 MOTORS: dict[str, Motor] = {
-    "17HS2401": Motor("17HS2401 (NEMA17 40mm)", 0.45, rated_current_a=1.7),
+    # Badan diukur jangka sorong 4 Agu 2026: 43 mm (bukan 24 mm seperti yang
+    # sempat dikhawatirkan dari penomoran seri). Resistansi fasa 1.85 ohm.
+    "17HS2401": Motor("17HS2401 (NEMA17, 43 mm)", 0.45, rated_current_a=1.7),
     "17HS6401S": Motor("17HS6401S (NEMA17 60mm)", 0.70, rated_current_a=2.0),
     "MG996R": Motor("MG996R (servo, stall @6V)", 1.08, is_servo=True),
 }
@@ -357,7 +359,9 @@ AS5600_JOINTS: list[JointSpec] = [j for j in JOINTS if j.encoder_type == ENC_AS5
 # forearm +Z). Tinjau ulang setelah hard-stop mekanik final ditentukan.
 JOINT_LIMITS_DEG: dict[str, tuple[float, float]] = {
     "J1": (-180.0, 180.0),   # base yaw
-    "J2": (-95.0, 95.0),     # shoulder pitch
+    "J2": (-90.0, 90.0),     # shoulder pitch, DITETAPKAN di lengan terakit
+                             # 12 Agu 2026 (+-90 dari home tegak atas), bukan
+                             # lagi asumsi rancangan +-95
     "J3": (-150.0, 150.0),   # elbow pitch
     "J4": (-180.0, 180.0),   # wrist roll
     "J5": (-120.0, 120.0),   # wrist pitch

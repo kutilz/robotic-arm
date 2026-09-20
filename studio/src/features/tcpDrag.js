@@ -2,6 +2,14 @@
    Drag TCP bebas dengan mouse (gizmo) -> IK numerik. Mengadopsi TCP transform
    controls Waldo Commander. Translate = geser posisi TCP; Rotate = putar
    orientasi TCP. Orbit kamera dimatikan saat gizmo di-drag.
+
+   MODUL INI TIDAK PERNAH MENGIRIM APA APA KE LENGAN, dan jangan ditambahi
+   pengiriman. Saat mode LIVE menyala, lengan mengikuti gizmo karena
+   net/liveLink.js membaca pose twin tiap 50 ms dan mengalirkannya bertahap;
+   gizmo cukup menulis pose twin seperti biasa. Menaruh sendGoto di sini
+   (mis. di objectChange) akan membuat dua sumber target mengirim ke sendi yang
+   sama tanpa saling tahu, dan objectChange dipanggil sekali per gerakan mouse,
+   yaitu jauh lebih rapat daripada yang bisa diladeni ESP32.
    ========================================================================== */
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
 import { THREE, scene, renderer, camera, curCam, onFrame, setControlsEnabled } from '../core/viewport.js';

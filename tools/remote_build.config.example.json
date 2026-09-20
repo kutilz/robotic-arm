@@ -1,0 +1,7 @@
+{
+  "host": "192.168.1.XX",
+  "user": "NamaUserWindowsDiPC",
+  "ssh_key": "~/.ssh/robotic-arm-pc",
+  "remote_dir": "C:/Users/NamaUserWindowsDiPC/remote-builds",
+  "remote_pio": "$env:USERPROFILE\\.platformio\\penv\\Scripts\\pio.exe"
+}

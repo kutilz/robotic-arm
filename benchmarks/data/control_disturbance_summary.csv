@@ -1,0 +1,13 @@
+test,joint,mode,n_sampel,acuan_deg,simpangan_deg,sisa_deg,waktu_pulih_s,iterasi_pulih
+droop-0.2kg-tcp,J2,closed,140,29.9970,-0.2230,-0.1215,1.720,
+droop-0.2kg-tcp,J2,open,140,30.0000,-0.2040,-0.1360,0.000,
+droop-0.2kg-tcp,J3,closed,140,-30.0080,-0.2160,-0.1090,0.000,
+droop-0.2kg-tcp,J3,open,140,-29.9875,-0.2195,-0.1410,0.000,
+droop-0.5kg-forearm,J2,closed,140,29.9805,-0.2905,-0.0925,0.120,
+droop-0.5kg-forearm,J2,open,140,29.9950,-0.3740,-0.2555,,
+droop-0.5kg-forearm,J3,closed,140,-29.9925,-0.2885,-0.1020,0.120,
+droop-0.5kg-forearm,J3,open,140,-30.0070,-0.3130,-0.2250,,
+kehilangan-langkah,J2,closed,140,29.9990,-6.4240,-0.1715,1.700,
+kehilangan-langkah,J2,open,140,29.9945,-6.5435,-6.3825,,
+kehilangan-langkah,J3,closed,140,-30.0155,-5.1395,-0.1280,0.480,
+kehilangan-langkah,J3,open,140,-30.0050,-5.1770,-5.0995,,
