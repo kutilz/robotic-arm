@@ -61,6 +61,11 @@ studio/node_modules/
 # Model CAD besar (regenerable via export Onshape), jangan commit 21 MB
 # Sumber kebenaran desain 3D tetap FeatureScript di onshape/*.fs
 *.glb
+# Kecuali satu: mesh hasil optimize_cad_glb.mjs (31,7 MB -> 1,8 MB) yang
+# dipakai demo web. Tanpa berkas ini situs live jatuh ke model blok, jadi
+# pengunjung tidak pernah melihat CAD aslinya. Segini masih murah untuk
+# repo yang isinya 2,6 MB.
+!studio/public/main-assembly.glb
 *.gltf
 *.step
 *.stp

@@ -13,11 +13,17 @@
 </p>
 
 <p align="center">
+  <a href="https://robotic-arm-psi.vercel.app"><b>&#9654;&nbsp; Open the live digital twin</b></a><br>
+  <sub>Runs in the browser, no install and no hardware. Drag the arm, jog each joint, play a routine.</sub>
+</p>
+
+<p align="center">
   <img src="docs/img/arm-built.jpg" alt="The assembled arm on the bench" height="380">
   &nbsp;&nbsp;
   <img src="docs/img/digital-twin.png" alt="Cycloidal Arm Studio digital twin" height="380">
 </p>
-<p align="center"><sub>Left: the physical arm. Right: the browser digital twin mirroring it at 50 Hz.</sub></p>
+<p align="center"><sub>Left: the physical arm. Right: the browser digital twin mirroring it at 50 Hz &mdash;
+<a href="https://robotic-arm-psi.vercel.app">try it live</a>.</sub></p>
 
 ---
 
@@ -131,7 +137,10 @@ python -m arm.bridge --simulate     # digital twin, no hardware
 # then open studio/index.html and connect to ws://localhost:8765
 ```
 
-With hardware, skip the bridge entirely and point the studio at `ws://<esp32-ip>:81`.
+Or skip the install entirely and open the [hosted digital twin](https://robotic-arm-psi.vercel.app),
+which runs the same code against the real CAD mesh.
+
+With hardware, skip the bridge and point the studio at `ws://<esp32-ip>:81`.
 
 ---
 
