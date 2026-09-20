@@ -17,7 +17,7 @@ issue, dan saran dipersilakan.
 - **Kode Python** (`src/arm/`, `benchmarks/`): kontrol, analisis, sizing.
 - **Firmware** (`firmware/`): Arduino; cantumkan motor/driver yang diuji.
 - **Digital twin** (`studio/`): web Three.js.
-- **Dokumen** (`docs/`, `thesis/`): perbaikan, sumber tambahan dengan sitasi.
+- **Dokumen** (`docs/`): perbaikan, sumber tambahan dengan sitasi.
 
 ## Mengubah parameter fisik
 

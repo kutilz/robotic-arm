@@ -1,9 +1,10 @@
 cff-version: 1.2.0
-message: "Jika Anda menggunakan proyek ini, mohon sitasi seperti di bawah."
+message: "Jika Anda memakai proyek ini, mohon sitasi seperti di bawah."
 title: "Robotic Arm 6-DOF 3D Printed dengan Position Feedback dan Digital Twin Berbasis Web"
 type: software
 authors:
-  - given-names: Ilyas
+  - given-names: "Ilyasa Nafan"
+    family-names: Faza
     alias: kutilz
 repository-code: "https://github.com/kutilz/robotic-arm"
 license: MIT

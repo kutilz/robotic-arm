@@ -1,128 +1,177 @@
-# Robotic Arm 6-DOF 3D Printed: Cycloidal Drive
+<h1 align="center">6-DOF 3D-Printed Robotic Arm</h1>
 
-> **Skripsi:** *Rancang Bangun Robotic Arm 6-DOF 3D Printed dengan Mekanisme
-> Position Feedback dan Interface Digital Twin Berbasis Web*
+<p align="center">
+  <b>Custom cycloidal drives &middot; closed-loop encoder feedback &middot; real-time web digital twin</b><br>
+  <sub>Designed, printed, wired, and measured end to end. Every number below came off the bench.</sub>
+</p>
 
-[![CI](https://github.com/kutilz/robotic-arm/actions/workflows/ci.yml/badge.svg)](https://github.com/kutilz/robotic-arm/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+<p align="center">
+  <a href="https://github.com/kutilz/robotic-arm/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/kutilz/robotic-arm/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-blue.svg"></a>
+  <img alt="ESP32" src="https://img.shields.io/badge/MCU-ESP32-E7352C">
+  <img alt="Three.js" src="https://img.shields.io/badge/Digital%20Twin-Three.js-000000">
+</p>
 
-Lengan robot 6 derajat kebebasan (6-DOF) yang dicetak 3D sepenuhnya dengan
-**reduksi cycloidal custom** + 4× stepper NEMA17 (J1-J4: 17HS2401 ×3 dan
-17HS6401S ×1) & 2× servo MG996R (J5-J6), dilengkapi **position feedback**
-(4× encoder magnetik AS5600 di output J1-J4, pot internal servo untuk J5/J6,
-kontrol closed-loop) dan **digital twin berbasis web** yang mencerminkan posisi
-lengan fisik secara real-time.
-
-Proyek ini open source: silakan dipelajari, direplikasi, dan dikembangkan.
+<p align="center">
+  <img src="docs/img/arm-built.jpg" alt="The assembled arm on the bench" height="380">
+  &nbsp;&nbsp;
+  <img src="docs/img/digital-twin.png" alt="Cycloidal Arm Studio digital twin" height="380">
+</p>
+<p align="center"><sub>Left: the physical arm. Right: the browser digital twin mirroring it at 50 Hz.</sub></p>
 
 ---
 
-## Arsitektur sistem
+## What this is
+
+A six-axis robot arm whose gearboxes I designed and printed myself, instead of buying
+them. Four joints run **custom cycloidal reducers** (15:1 and 30:1) driven by NEMA17
+steppers; each one carries an **AS5600 magnetic encoder on the output shaft**, so the
+firmware closes the loop on where the joint actually is rather than on how many steps it
+was told to take. A browser-based digital twin mirrors the real arm over WebSocket, and
+drives it back.
+
+The interesting part is not that it moves. It is that **every design claim in this repo
+has a measurement behind it** &mdash; and where the measurement disagreed with the design,
+the measurement is what got written down.
+
+---
+
+## Measured results
+
+Closed-loop feedback is the core contribution, so here is what it actually bought,
+measured over 5 positions x 30 repeats per joint:
+
+| Joint | Open loop | Closed loop | Improvement |
+| ----- | --------- | ----------- | ----------- |
+| J1 base yaw | 0.161&deg; | **0.084&deg;** | 1.9x |
+| **J2 shoulder** | 0.683&deg; | **0.119&deg;** | **5.7x** |
+| J3 elbow | 0.445&deg; | **0.097&deg;** | 4.6x |
+| J4 wrist roll | 0.118&deg; | **0.068&deg;** | 1.7x |
+
+<sub>Mean absolute positioning error. The heavier and more geared the joint, the more the
+encoder matters &mdash; J2 carries the whole arm and gains the most.</sub>
+
+| System | Measured | |
+| ------ | -------- | --- |
+| Digital twin round-trip latency | **50 ms** mean, 72 ms p95 | 50 Hz update rate |
+| Firmware control loop | **4.3 ms** mean while moving | 6.1 ms p95 |
+| J1 repeatability | **0.054&deg;** std dev | backlash 0.617&deg; |
+| J2 output torque | **10.7 N&middot;m** measured | vs 7.9 N&middot;m datasheet prediction |
+| Cycloidal efficiency | 63&ndash;66% (J2&ndash;J4), 94% (J1 belt) | design assumed 75% |
+| Servo feedback linearity | **R&sup2; = 0.9999** | end-to-end error 0.59&ndash;1.33&deg; rms |
+
+Raw data: [`benchmarks/`](benchmarks/) &middot; calibration procedure and traps:
+[`firmware/kalibrasi.md`](firmware/kalibrasi.md)
+
+---
+
+## The mechanism
+
+<p align="center"><img src="docs/img/cycloidal-exploded.png" alt="Exploded view of the J2 cycloidal drive" width="88%"></p>
+
+The shoulder reducer: two cycloidal discs 180&deg; out of phase on a shared eccentric,
+30 roller pins setting the 30:1 ratio, and an AS5600 diametral magnet reading the output
+directly. Printed in PLA+, with the pin circle upsized specifically on J2 to raise its
+torque ceiling from ~13 to ~17 N&middot;m.
+
+<p align="center"><img src="docs/img/mechanism.png" alt="Full arm mechanism with callouts" width="88%"></p>
+
+<p align="center"><img src="docs/img/control-board.jpg" alt="ESP32 control board" width="70%"></p>
+<p align="center"><sub>ESP32 + TMC2209 drivers + TCA9548A I2C mux, so four AS5600 encoders
+that all share address 0x36 can be read on one bus.</sub></p>
+
+---
+
+## How it fits together
 
 ```
-   Lengan fisik (4x stepper NEMA17 + 2x servo MG996R + 4x encoder AS5600)
-              |  step/dir (TMC2209) + PWM          ^ I2C (TCA9548A mux)
-              |                                    ^ ADC1 (pot servo J5/J6)
-              v                                     |
-   Firmware ESP32  (closed-loop position control)   firmware/arm_controller_esp32/
-              |  WebSocket ws://<esp32>:81  (JSON: goto/feedback/estop/cal)
-              v
-   Digital Twin Web  (Three.js, mirror real-time)    studio/index.html
+  Physical arm     4x NEMA17 + cycloidal   2x MG996R servo   4x AS5600 encoder
+                          |                      |                  |
+                   step/dir (TMC2209)          PWM            I2C via TCA9548A mux
+                          |                      |                  |
+                          +----------+-----------+---------+--------+
+                                     |
+  Firmware            ESP32  -  closed-loop position control, hosts its own WebSocket
+                                     |          firmware/arm_controller_esp32/
+                                     |  ws://<esp32>:81   JSON: goto / feedback / estop / cal
+                                     |
+  Digital twin        Browser  -  Three.js scene mirrors the real arm, and commands it
+                                                studio/
 ```
 
-ESP32 melayani WebSocket sendiri, tak perlu bridge untuk hardware nyata.
-Bridge Python (`src/arm/bridge.py`) kini opsional, dipakai untuk mode
-`--simulate` (digital twin tanpa hardware) atau board Mega legacy.
-
-Tiga kontribusi skripsi yang tercermin di repo:
-
-1. **Rancang bangun mekanik**: gearbox cycloidal cetak 3D, sizing motor/gearbox
-   (`docs/research/`, dikodekan & diuji di `src/arm/torque.py`).
-2. **Position feedback**: 4× encoder AS5600 di output J1-J4 + pot internal
-   servo J5/J6, kontrol closed-loop (`firmware/`).
-3. **Digital twin web**: visualisasi & kontrol real-time (`studio/`, opsional
-   `bridge.py` untuk simulasi).
+The ESP32 serves its own WebSocket, so no laptop bridge is needed for real hardware.
+The Python bridge (`src/arm/bridge.py`) is optional &mdash; it exists for `--simulate`
+mode, which runs the whole digital twin with no hardware attached.
 
 ---
 
-## Struktur repositori
+## Repository map
 
-| Folder           | Isi                                                                                               |
-| ---------------- | ------------------------------------------------------------------------------------------------- |
-| `src/arm/`       | Paket Python: `config` (parameter), `torque` (sizing), `kinematics` (FK), `bridge` (digital twin) |
-| `firmware/`      | Sketch ESP32 (aktif) + legacy Mega: kontrol stepper/servo closed-loop + encoder AS5600            |
-| `benchmarks/`    | Skrip benchmark torsi & efisiensi (prediksi vs terukur)                                           |
-| `studio/`        | Digital twin web (Three.js), Cycloidal Arm Studio                                                |
-| `thesis/`        | Outline & panduan penulisan skripsi (template Word)                                               |
-| `docs/research/` | Dokumen riset sizing motor & cycloidal drive                                                      |
-| `tests/`         | Uji otomatis (memverifikasi perhitungan = dokumen riset)                                          |
+| Path | What is in it |
+| ---- | ------------- |
+| [`src/arm/`](src/arm/) | Python package: torque sizing, kinematics, optional simulation bridge |
+| [`firmware/`](firmware/) | ESP32 sketch: closed-loop control, encoder read, NVS calibration, built-in web UI |
+| [`studio/`](studio/) | Cycloidal Arm Studio &mdash; the Three.js digital twin, desktop and mobile |
+| [`benchmarks/`](benchmarks/) | Every measurement in this README, raw and summarised |
+| [`docs/research/`](docs/research/) | Sizing and drive-selection studies that justify the design |
+| [`onshape/`](onshape/) | FeatureScript CAD source (the 3D model is generated, not committed) |
+| [`tests/`](tests/) | Checks that the code agrees with the research documents |
 
 ---
 
-## Mulai cepat (quick start)
+## Try it without hardware
 
 ```bash
-# 1. Pasang dependensi Python
-pip install -e ".[dev]"          # atau: pip install -r requirements.txt
+pip install -e ".[dev]"
 
-# 2. Cetak tabel sizing motor/gearbox per sendi
-python -m arm.torque
+python -m arm.torque      # print the motor/gearbox sizing table
+pytest -q                 # 22 tests: code vs. research documents
 
-# 3. Jalankan uji (memverifikasi perhitungan cocok dokumen riset)
-pytest -q
-
-# 4. Jalankan digital twin tanpa hardware (mode simulasi)
-python -m arm.bridge --simulate
-#    lalu buka studio/index.html di browser, sambungkan ke ws://localhost:8765
-
-# 5. Dengan hardware nyata:
-python -m arm.bridge --port COM5     # Windows  (atau /dev/ttyUSB0 di Linux)
+python -m arm.bridge --simulate     # digital twin, no hardware
+# then open studio/index.html and connect to ws://localhost:8765
 ```
 
----
-
-## Ringkasan hasil sizing (output `python -m arm.torque`)
-
-| Joint  | Fungsi       | Statik      | Target      | Rasio    | Drive                                 | Motor         | Keluaran | Margin    |
-| ------ | ------------ | ----------- | ----------- | -------- | ------------------------------------- | ------------- | -------- | --------- |
-| J1     | base yaw     | ~0          | 3 N·m       | 1:15     | belt HTD3M 2-stage (12→60, 20→60)     | 17HS2401      | 2.73 N·m | 0.91×     |
-| **J2** | **shoulder** | **4.8 N·m** | **~12 N·m** | **1:30** | **cycloidal DIRECT, single motor**    | **17HS6401S** | 7.88 N·m | **0.66×** |
-| J3     | elbow        | 1.38 N·m    | ~3.5 N·m    | 1:30     | motor relokasi + belt 3:1 + cyc 1:10  | 17HS2401      | 4.56 N·m | 1.32×     |
-| J4     | wrist roll   | ~0          | 1 N·m       | 1:15     | motor relokasi + cycloidal (TENTATIF) | 17HS2401      | 2.53 N·m | 2.53×     |
-| J5     | wrist pitch  | 0.23 N·m    | 0.59 N·m    | direct   | servo direct, feedback pot internal   | MG996R        | 0.49 N·m | **0.83×** |
-| J6     | end roll     | ~0          | 0.3 N·m     | direct   | servo direct, feedback pot internal   | MG996R        | 0.49 N·m | 1.62×     |
-
-Target J1/J4/J6 dari pertimbangan inersia; J2/J3/J5 = torsi statik × faktor
-dinamis 2.5. Margin = keluaran / target.
-
-Temuan kunci: **hanya bahu (J2) yang mendekati batas torsi PLA+ cetak** (ceiling
-~13 N·m @ pin-circle 22mm, di-upsize khusus J2 ke ~28-30mm agar ceiling naik ke
-~17 N·m). J3-J6 semua jauh di bawah ceiling → aman di PLA+/PETG. J2 dan J5
-berstatus 🟡 *conditional* (marginal di faktor dinamis 2.5×; J2 sanggup menahan
-100% workspace secara statik tetapi hanya 73.6% pada target 2.5×). J1 sedikit di
-bawah target inersia (0.91×). Mitigasi opsional counterbalance/rasio/motor
-cadangan, lihat dokumen. Rincian & sumber: lihat
-[`docs/research/arsitektur_final_robotic_arm_6dof.md`](docs/research/arsitektur_final_robotic_arm_6dof.md).
+With hardware, skip the bridge entirely and point the studio at `ws://<esp32-ip>:81`.
 
 ---
 
-## Roadmap skripsi
+## Three things the bench taught me
 
-- [x] Riset & sizing motor/gearbox per sendi
-- [x] Kode perhitungan torsi + kinematika + uji otomatis
-- [x] Digital twin web (mode simulasi)
-- [ ] Cetak & rakit wrist cluster: validasi J4 cycloidal 1:15 + J5/J6 servo direct
-- [ ] Prototipe siku (J3) 1:30, uji ke ~3.5 N·m
-- [ ] Integrasi 4 encoder AS5600 (J1-J4) + closed-loop di firmware
-- [ ] Bridge real-time hardware <-> digital twin
-- [ ] Benchmark torsi & efisiensi (prediksi vs terukur)
-- [ ] Penulisan bab skripsi
+**The closed loop was never running.** Closed-loop error measured *identical* to
+open-loop error. The correction was real, but an `isRunning()` branch cancelled it before
+it was ever applied. After the fix, every point landed inside the 0.3&deg; deadband
+&mdash; 1.201&deg; rms down to 0.212&deg;.
+
+**The ADC was reporting its own config register.** Three servo channels read
+-1935.6 / -1423.6 / -911.6 mV. The tell was that consecutive channels differed by exactly
+4096 counts: a pointer-register bug, not a wiring fault.
+
+**A gear ratio cannot be measured through a narrow window.** Short sweeps put the J1
+ratio anywhere from 15.14 to 15.59, all confidently wrong. Only a full revolution
+resolves it to the designed 15 &mdash; the error has a once-per-turn component that a
+narrow sweep reads as slope.
 
 ---
 
-## Lisensi & sitasi
+## Status and honest limits
 
-Dilisensikan di bawah [MIT](LICENSE). Bila proyek ini membantu riset Anda, mohon
-sitasi (lihat [`CITATION.cff`](CITATION.cff)).
+Built and characterised; **J1&ndash;J4 closed-loop, J5/J6 servo with internal-pot
+feedback**. Known limits, all measured rather than assumed:
 
-Kontribusi dipersilakan, lihat [`CONTRIBUTING.md`](CONTRIBUTING.md).
+- **J1 absolute accuracy is encoder-bound, not control-bound.** 1.4&deg; and 0.9&deg;
+  error components at two and one cycles per revolution, with the AS5600 reporting
+  `AGC` pinned at 128. That is a magnet-mounting problem; no amount of software fixes it.
+  Repeatability (0.054&deg;) is unaffected.
+- **J5 never truly holds still** &mdash; it carries the wrist and gripper against gravity
+  and hunts continuously, with 500x the resting noise of J6.
+- **Cycloidal efficiency came in below the 75% design assumption** (63&ndash;66%), which
+  is why J2 sits closest to its torque margin.
+
+Documentation throughout the repository is in Indonesian.
+
+---
+
+## License
+
+[MIT](LICENSE). If this helps your research, a citation is appreciated &mdash; see
+[`CITATION.cff`](CITATION.cff). Contributions welcome: [`CONTRIBUTING.md`](CONTRIBUTING.md).
