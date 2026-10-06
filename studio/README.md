@@ -173,6 +173,22 @@ ESP32 gagal masuk WiFi dan jatuh ke mode AP.
 `python -m arm.bridge --simulate` (atau `--port COM5`), lalu sambungkan ke
 `ws://localhost:8765`.
 
+**C. Lewat relay CLOUD (dari mana saja, termasuk twin di Vercel).** Di popover
+LINK pilih **CLOUD**, isi host relay, id lengan, dan token operator (disimpan
+di browser lewat `net/linkConfig.js`, sama untuk desktop dan HP). ESP32 yang
+menelepon keluar ke relay, jadi tidak butuh WiFi yang sama, PC, atau instalasi
+apa pun. Jalur lokal (A/B) tetap ada dan selalu menang kalau berebut kendali.
+
+Di kedua jalur studio mengukur RTT ke ESP32 (ping tiap 500 ms) dan membatasi
+dirinya sesuai tingkat link (`net/netQuality.js`): LIVE dan profil RUN ditahan
+kalau link buruk, gerak ditolak kalau pong tidak kembali. Selama ARM menyala
+tiap goto dan ping membawa **lease**; firmware merem lengan kalau lease habis.
+Baris di bawah lampu LINK menampilkan RTT, tingkat, umur feedback, pemegang
+kendali, dan tautan unduh log RTT (CSV). Selama model menampilkan target, bola
+oranye menandai TCP lengan yang sebenarnya (`features/actualMarker.js`).
+Rancangan lengkap: [`docs/kontrol-jarak-jauh.md`](../docs/kontrol-jarak-jauh.md).
+Bukti tanpa peramban: `node studio/tools/verify_net.mjs`.
+
 **Target vs actual.** Saat tersambung, feedback encoder menggerakkan model 3D
 (badge `live`). Begitu pose diubah lokal (jog/slider/preset/IK/timeline), model
 menampilkan TARGET dan feedback ditahan (badge `target`) supaya susunan pose

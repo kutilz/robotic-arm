@@ -186,6 +186,19 @@ html.eng #modePill { display: flex; }
 .ilSvc button.svc.on { background: var(--warn); color: #221a04; font-weight: 700; }
 .ilPop { margin: 8px 0 2px; padding: 8px; border: 1px solid var(--line2); border-radius: 8px; background: var(--panel2); }
 .ilPop .mini { margin-bottom: 0; }
+/* Pilihan jalur LOKAL / CLOUD + isian relay. */
+.ilPop .segsm { margin-bottom: 7px; }
+.ilPop .ilRow { display: flex; gap: 6px; margin-bottom: 6px; }
+.ilPop .ilRow > input { flex: 1 1 auto; min-width: 0; }
+.ilPop input[type=password] { width: 100%; }
+.ilPop .ilGo { margin-top: 2px; }
+/* Baris kualitas link: angka ukur, bukan perkiraan. */
+.ilNet { font-family: var(--mono); font-size: 9px; line-height: 1.5; color: var(--muted); margin-top: 6px; }
+.ilNet b { color: var(--ink); font-weight: 600; }
+.ilNet[data-lv="lan"] b.lv, .ilNet[data-lv="baik"] b.lv { color: var(--ok); }
+.ilNet[data-lv="buruk"] b.lv { color: var(--warn); }
+.ilNet[data-lv="putus"] b.lv { color: var(--over); }
+.ilNet button { background: none; border: 0; padding: 0; color: var(--accent); font: inherit; cursor: pointer; text-decoration: underline; }
 
 /* Baris alasan. Inilah sebenarnya isi bilah: jawaban atas "kenapa tombol ini
    mati", di tempat tombolnya berada. Isinya selalu dari blockedReason(). */
@@ -391,7 +404,7 @@ select {
   width: 100%; background: var(--panel2); color: var(--ink); border: 1px solid var(--line2);
   border-radius: 6px; padding: 6px 8px; font-size: 11.5px; font-family: var(--mono);
 }
-input[type=text], .txt {
+input[type=text], input[type=password], .txt {
   width: 100%; background: var(--panel2); color: var(--ink); border: 1px solid var(--line2);
   border-radius: 6px; padding: 7px 9px; font-family: var(--mono); font-size: 10.5px;
 }

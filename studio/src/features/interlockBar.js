@@ -40,9 +40,13 @@
    ========================================================================== */
 import { STATE } from '../config/arm.js';
 import {
-  connect, disconnect, isConnected, isActive, getUrl, onHwStatus,
+  connect, disconnect, isConnected, isActive, onHwStatus,
   isDriverOk, getDriverResets, getActual, isFbTrusted,
+  getNet, isSocketOpen, downloadRttCsv,
 } from '../net/bridge.js';
+import {
+  loadLink, saveLink, linkUrl, displayUrl, localBlockedReason,
+} from '../net/linkConfig.js';
 import {
   isArmed, isLive, setArmed, setLive, getProfile,
   blockedReason, armVetoReason, onLiveChange,
@@ -96,14 +100,17 @@ function drawLamps() {
 
   /* LINK tetap jujur saat E-STOP: socketnya memang masih terbuka. Yang merah
      karena E-STOP adalah bilahnya, bukan lampu yang tidak ada hubungannya. */
-  setSt(els.link, conn ? 'ok' : isActive() ? 'warn' : '');
+  const net = getNet();
+  setSt(els.link, conn ? (net.level === 'putus' ? 'err' : net.level === 'buruk' ? 'warn' : 'ok')
+    : isActive() ? 'warn' : '');
   /* Driver tidak punya pendapat selama link mati, dan menampilkan "ok" di situ
      berarti menjanjikan sesuatu yang tidak pernah diperiksa. */
   setSt(els.drv, !conn ? '' : !drvOk ? 'err' : resets > 0 ? 'warn' : 'ok');
   setSt(els.arm, armed ? 'ok' : (armVetoReason() ? 'err' : ''));
   setSt(els.live, isLive() ? 'ok' : '');
 
-  els.link.querySelector('span').textContent = conn ? 'LINK' : isActive() ? 'CARI' : 'LINK';
+  els.link.querySelector('span').textContent = conn ? (net.mode === 'cloud' ? 'CLOUD' : 'LINK')
+    : isSocketOpen() && net.mode === 'cloud' ? 'RELAY' : isActive() ? 'CARI' : 'LINK';
   els.arm.querySelector('span').textContent = armed ? 'ARMED' : 'ARM';
   els.live.querySelector('span').textContent = isLive() ? 'LIVE' : 'live';
   els.drv.querySelector('span').textContent = resets > 0 ? `DRV ${resets}x` : 'DRIVER';
@@ -147,34 +154,78 @@ function drawActual() {
   els.actNote.style.display = adaTakTerukur ? '' : 'none';
 }
 
+const fmtMs = (v) => (Number.isFinite(v) ? `${Math.round(v)}` : '?');
+const OWN_TXT = { local: 'jaringan lokal', cloud: 'cloud', none: 'bebas' };
+
+/* Baris kualitas link. Semua angkanya hasil ukur ping/pong ke ESP32 (lewat
+   relay kalau CLOUD), jadi yang terbaca di sini adalah latensi yang dialami
+   perintah gerak, termasuk antrean dan beban loop kendali firmware. */
+function drawNet() {
+  const n = getNet();
+  const show = isSocketOpen();
+  els.net.style.display = show ? '' : 'none';
+  if (!show) return;
+  els.net.dataset.lv = n.level;
+  const jalur = n.mode === 'cloud' ? 'CLOUD' : 'LOKAL';
+  if (n.mode === 'cloud' && !n.relay.device) {
+    els.net.innerHTML = `<b>${jalur}</b> relay tersambung, <b class="lv">lengan offline</b>: `
+      + 'ESP32 belum menelepon relay (cek WiFi/hotspot lengan, atau CLOUD_HOST di wifi_secrets.h).';
+    return;
+  }
+  const parts = [
+    `<b>${jalur}</b> <b class="lv">${n.label}</b>`,
+    `RTT ${fmtMs(n.p50)} ms (p95 ${fmtMs(n.p95)}, jitter ${fmtMs(n.jitter)})`,
+  ];
+  if (n.fbAge != null) parts.push(`feedback ${(n.fbAge / 1000).toFixed(1)} s lalu`);
+  if (n.lease) parts.push(`lease ${(n.lease / 1000).toFixed(1)} s`);
+  parts.push(`kendali: ${n.mode === 'cloud' && n.relay.ctrl === 'other' ? 'browser lain' : OWN_TXT[n.own] || n.own}`);
+  if (n.hold && isArmed()) parts.push('<b class="lv">direm (lease habis)</b>');
+  if (n.mode === 'cloud' && n.relay.role === 'viewer') parts.push('<b>token lihat saja</b>');
+  els.net.innerHTML = parts.join(' · ') + ` · <button type="button" data-csv>log RTT (${n.logN})</button>`;
+}
+
 function draw() {
   if (!els) return;
   els.bar.classList.toggle('trip', !!STATE.estop);
   drawLamps();
   drawWhy();
+  drawNet();
   drawActual();
   els.svcSeg.forEach((b, k) => b.classList.toggle('on', (k === 1) === isCalService()));
 }
 
 /* ---------------- build ---------------- */
+/* Konfigurasi jalur hidup di net/linkConfig.js dan dipakai bersama halaman HP. */
+const cfg = loadLink();
+
+function sambung() {
+  const u = linkUrl(cfg);
+  if (!u) {
+    els.pop.style.display = '';
+    say('Jalur CLOUD belum lengkap: isi host relay dan token operator.', 'bad');
+    return;
+  }
+  const blok = cfg.mode === 'local' ? localBlockedReason(u) : null;
+  connect(u);
+  say(blok || `Menyambung ke ${displayUrl(u)} ...`, blok ? 'warn' : '');
+}
+
 export function buildInterlockBar() {
   const bar = document.createElement('div'); bar.className = 'ilBar';
 
   /* baris rantai */
   const chain = document.createElement('div'); chain.className = 'ilChain';
 
-  const link = mkLamp(chain, 'link', 'LINK', 'sambungkan / putuskan bridge', () => {
+  const link = mkLamp(chain, 'link', 'LINK', 'sambungkan / putuskan (jalur di tombol ▾)', () => {
     if (isActive()) { disconnect(); say('Link diputus.'); return; }
-    const u = (els.url.value || '').trim() || getUrl();
-    connect(u);
-    say('Menyambung ke ' + u + ' ...');
+    sambung();
   });
   const edit = document.createElement('button');
   edit.className = 'ilEdit'; edit.textContent = '▾'; edit.title = 'ubah alamat bridge';
   edit.onclick = () => {
     const buka = els.pop.style.display === 'none';
     els.pop.style.display = buka ? '' : 'none';
-    if (buka) els.url.focus();
+    if (buka) (cfg.mode === 'cloud' ? els.relay : els.url).focus();
   };
   chain.appendChild(edit);
   arrow(chain);
@@ -229,18 +280,64 @@ export function buildInterlockBar() {
   chain.appendChild(svc);
   bar.appendChild(chain);
 
-  /* popover alamat bridge */
+  /* popover jalur: LOKAL (ESP32 langsung) atau CLOUD (lewat relay) */
   const pop = document.createElement('div'); pop.className = 'ilPop'; pop.style.display = 'none';
-  const url = document.createElement('input'); url.type = 'text'; url.id = 'wsUrl'; url.value = getUrl();
-  url.onkeydown = (e) => { if (e.key === 'Enter') { connect(url.value.trim()); pop.style.display = 'none'; } };
-  pop.appendChild(url);
-  const popHint = document.createElement('div'); popHint.className = 'mini';
-  popHint.innerHTML = 'Bawaan <code>ws://192.168.1.8:81</code> = ESP32 di WiFi rumah (halaman bawaannya '
+  const modeSeg = document.createElement('div'); modeSeg.className = 'segsm';
+  const modeBtns = [['local', 'LOKAL'], ['cloud', 'CLOUD']].map(([k, lbl]) => {
+    const b = document.createElement('button'); b.type = 'button'; b.textContent = lbl;
+    b.onclick = () => { cfg.mode = k; saveLink(cfg); drawMode(); };
+    modeSeg.appendChild(b);
+    return [k, b];
+  });
+  pop.appendChild(modeSeg);
+
+  const field = (type, ph, val, onIn) => {
+    const i = document.createElement('input'); i.type = type; i.placeholder = ph; i.value = val || '';
+    i.autocomplete = 'off'; i.spellcheck = false;
+    i.oninput = () => { onIn(i.value.trim()); saveLink(cfg); };
+    i.onkeydown = (e) => { if (e.key === 'Enter') { pop.style.display = 'none'; sambung(); } };
+    return i;
+  };
+  const boxLocal = document.createElement('div');
+  const url = field('text', 'ws://192.168.1.8:81', cfg.localUrl, (v) => { cfg.localUrl = v; });
+  url.id = 'wsUrl';
+  boxLocal.appendChild(url);
+  const hintLocal = document.createElement('div'); hintLocal.className = 'mini';
+  hintLocal.innerHTML = 'Bawaan <code>ws://192.168.1.8:81</code> = ESP32 di WiFi rumah (halaman bawaannya '
     + '<code>http://192.168.1.8/</code>). Alternatif: <code>ws://armbot.local:81</code> (mDNS, cuma jalan '
     + 'dari dalam WiFi yang sama), <code>ws://192.168.4.1:81</code> (ESP32 jatuh ke mode AP), atau '
-    + '<code>ws://localhost:8765</code> sesudah <code>python -m arm.bridge --simulate</code>.';
-  pop.appendChild(popHint);
+    + '<code>ws://localhost:8765</code> sesudah <code>python -m arm.bridge --simulate</code>. '
+    + 'Hanya jalan kalau studio dibuka lewat <code>http://</code>.';
+  boxLocal.appendChild(hintLocal);
+
+  const boxCloud = document.createElement('div');
+  const relayIn = field('text', 'armbot-relay.namamu.workers.dev', cfg.relay, (v) => { cfg.relay = v; });
+  const armIn = field('text', 'armbot', cfg.armId, (v) => { cfg.armId = v || 'armbot'; });
+  armIn.style.maxWidth = '90px';
+  const row = document.createElement('div'); row.className = 'ilRow'; row.append(relayIn, armIn);
+  const tokIn = field('password', 'token operator', cfg.token, (v) => { cfg.token = v; });
+  boxCloud.append(row, tokIn);
+  const hintCloud = document.createElement('div'); hintCloud.className = 'mini';
+  hintCloud.innerHTML = 'Lewat relay Cloudflare: bisa dari mana saja, termasuk dari twin yang di-host di '
+    + '<code>https://</code>. Lengan harus tersambung ke WiFi yang punya internet (mis. hotspot HP) dan '
+    + 'firmware-nya diisi <code>CLOUD_HOST</code>. Latensi internet ditangani otomatis: LIVE dan RUN '
+    + 'ditahan kalau link memburuk, lengan direm firmware kalau perintah berhenti datang.';
+  boxCloud.appendChild(hintCloud);
+  pop.append(boxLocal, boxCloud);
+
+  const go = document.createElement('div'); go.className = 'btns ilGo';
+  const goBtn = document.createElement('button'); goBtn.type = 'button'; goBtn.textContent = 'sambung';
+  goBtn.onclick = () => { pop.style.display = 'none'; sambung(); };
+  go.appendChild(goBtn);
+  pop.appendChild(go);
   bar.appendChild(pop);
+
+  function drawMode() {
+    modeBtns.forEach(([k, b]) => b.classList.toggle('on', k === cfg.mode));
+    boxLocal.style.display = cfg.mode === 'local' ? '' : 'none';
+    boxCloud.style.display = cfg.mode === 'cloud' ? '' : 'none';
+  }
+  drawMode();
 
   /* baris alasan + baris kunci */
   const why = document.createElement('div'); why.className = 'ilWhy';
@@ -273,7 +370,16 @@ export function buildInterlockBar() {
   const stAck = document.createElement('div'); stAck.className = 'mini'; stAck.id = 'bridgeAck';
   bar.append(stDrv, stFault, stAck);
 
-  els = { bar, link, drv, arm, live, why, lock, act, actNote, url, pop, svcSeg };
+  /* baris kualitas link, tepat di atas baris alasan */
+  const net = document.createElement('div'); net.className = 'ilNet'; net.style.display = 'none';
+  net.addEventListener('click', (e) => {
+    if (!e.target.closest('[data-csv]')) return;
+    const n = downloadRttCsv();
+    say(`Log RTT diunduh (${n} sampel).`, 'ok');
+  });
+  bar.insertBefore(net, why);
+
+  els = { bar, link, drv, arm, live, why, lock, act, actNote, url, relay: relayIn, pop, svcSeg, net };
 
   onHwStatus(ev => {
     if (ev.type === 'fault') {

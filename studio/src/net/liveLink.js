@@ -57,11 +57,32 @@
    ========================================================================== */
 import { STATE } from '../config/arm.js';
 import { SPEED } from '../config/routines.js';
-import { isConnected, sendGoto, sendCalSet, onHwStatus, isDriverOk } from './bridge.js';
+import {
+  isConnected, sendGoto, sendCalSet, onHwStatus, isDriverOk,
+  getMode, getLevel, getNet, getP95, setLeaseProvider, getActual, isFbTrusted,
+} from './bridge.js';
 import { TICK_MS, planTick, stepPerTick } from './liveRamp.js';
+import { PROFILE, CLOUD_TICK_MS, leaseFor } from './netQuality.js';
 
 export { TICK_MS };
 const NJ = 6;
+
+/* -------------------------------------------------------------------------
+   LINK INTERNET (7 Okt 2026). Tiga tambahan, semuanya di modul ini karena
+   di sinilah satu satunya pintu perintah gerak:
+
+   1 LEASE. Selama ARM menyala, setiap goto dan setiap ping membawa lease
+     (net/netQuality.js leaseFor). Firmware merem lengan begitu lease habis
+     tanpa perpanjangan. ARM dimatikan = ping berhenti membawa lease = lengan
+     berhenti dalam hitungan lease, bukan menuntaskan target lama.
+   2 PERIODE KIRIM PER JALUR. Lokal tetap 50 ms (terbukti). Cloud 200 ms
+     dengan jatah per pesan yang ikut membesar: yang menjaga kehalusan di
+     jalur cloud adalah batas laju di firmware, bukan kerapatan pesan.
+   3 TINGKAT LINK MEMBATASI. LIVE dan profil RUN hanya boleh di tingkat yang
+     mengizinkannya (PROFILE); turun tingkat mematikannya saat itu juga dan
+     menyebutkan alasannya. Link yang putus menolak gerak sama sekali.
+   ------------------------------------------------------------------------- */
+const tickMs = () => (getMode() === 'cloud' ? CLOUD_TICK_MS : TICK_MS);
 
 let armed = false;
 let live = false;
@@ -108,6 +129,19 @@ function armPrereq() {
      lengan diam tanpa gejala selain sunyi. Menyebutkannya di sini membuat
      penyebabnya muncul di tombol yang ditekan operator, bukan cuma di Serial. */
   if (!isDriverOk()) return 'Driver TMC belum siap. Periksa PSU 12 V; firmware mencoba memulihkan sendiri tiap 5 detik.';
+  const net = getNet();
+  if (net.level === 'putus') {
+    return `Link tersendat: ping terakhir belum dijawab ${(net.overdue / 1000).toFixed(1)} detik. `
+      + 'Firmware sudah merem lengan sendiri; tunggu link pulih.';
+  }
+  if (net.mode === 'cloud') {
+    if (net.relay.role === 'viewer') return 'Token ini mode LIHAT SAJA. Pakai token operator untuk mengendalikan.';
+    if (net.relay.ctrl === 'other') return 'Lengan sedang dikendalikan browser lain lewat relay.';
+    if (net.own === 'local') {
+      return 'Lengan sedang dikendalikan dari jaringan lokal. Jalur lokal selalu didahulukan; '
+        + 'tunggu sampai di sana dilucuti.';
+    }
+  }
   return null;
 }
 
@@ -142,7 +176,7 @@ function tick() {
   const msg = planTick({
     cmd,
     tgt: STATE.joints.map(j => j.a),
-    step: stepPerTick((SPEED[profile] || SPEED.teach).speed),
+    step: stepPerTick((SPEED[profile] || SPEED.teach).speed, tickMs()),
     dirty: STATE.poseDirty,
   });
   if (msg) sendPose(msg.angles, { src: 'live', keepDirty: msg.keepDirty });
@@ -150,14 +184,14 @@ function tick() {
 
 function startTimer() {
   clearInterval(timer);
-  timer = setInterval(tick, TICK_MS);
+  timer = setInterval(tick, tickMs());
 }
 function stopTimer() { clearInterval(timer); timer = null; }
 
 /** Nyalakan/matikan aliran live. Mengembalikan alasan gagal, atau null. */
 export function setLive(on, why = '') {
   if (on) {
-    const block = blockedReason();
+    const block = blockedReason() || levelBlocksLive();
     if (block) { live = false; stopTimer(); emit(block); return block; }
     /* Berangkat dari pose yang SEDANG diperintahkan, bukan dari pose twin:
        kalau operator sempat menggeser twin jauh sebelum menyalakan live, tick
@@ -202,11 +236,42 @@ export function setArmed(on) {
 /** Profil kecepatan. Ikut menentukan laju rayapan aliran live, jadi keduanya
  *  tidak bisa lagi berbeda diam diam dari yang dipakai firmware. */
 export function setProfile(k) {
-  if (!SPEED[k]) return;
+  if (!SPEED[k]) return null;
+  if (k === 'run' && !PROFILE[getLevel()].run) {
+    const why = `Link ${PROFILE[getLevel()].label.toLowerCase()}: profil RUN ditahan, TEACH saja sampai link membaik.`;
+    emit(why);
+    return why;
+  }
   profile = k;
   pushSpeed();
   emit();
+  return null;
 }
+
+/** Alasan tingkat link menolak LIVE, atau null. */
+function levelBlocksLive() {
+  const lv = getLevel();
+  if (PROFILE[lv].live) return null;
+  const net = getNet();
+  return `Link ${PROFILE[lv].label.toLowerCase()} (RTT p95 ${Number.isFinite(net.p95) ? Math.round(net.p95) : '?'} ms): `
+    + 'LIVE dimatikan supaya lengan tidak mengejar target yang datang tersendat. '
+    + 'Kirim pose satu per satu.';
+}
+
+/* Pose perintah disamakan dengan pose NYATA. Dipakai sesudah firmware merem
+   lengan karena lease habis: aliran live yang dinyalakan lagi harus merayap
+   dari tempat lengan berhenti, bukan dari target lama yang tidak pernah
+   dicapai. Sendi yang umpan baliknya tidak dipercaya (pot servo placeholder)
+   tetap memakai pose perintahnya sendiri, bukan angka karangan. */
+function resyncCmdFromActual() {
+  const a = getActual();
+  if (!a) return;
+  setCmd(cmd.map((c, i) => (a[i] != null && isFbTrusted(i) ? a[i] : c)));
+}
+
+/* Lease yang diminta ke firmware/relay. null selama ARM mati: ping tetap
+   jalan (RTT), tapi tidak lagi memperpanjang apa pun. */
+setLeaseProvider(() => (armed ? leaseFor(getMode(), getP95()) : null));
 function pushSpeed() {
   const p = SPEED[profile];
   if (isConnected()) sendCalSet({ speed: p.speed, accel: p.accel });
@@ -233,6 +298,40 @@ onHwStatus((ev) => {
     live = false;
     stopTimer();
     emit('Koneksi putus.');
+  } else if (ev.type === 'net') {
+    const p = PROFILE[ev.level];
+    if (live && !p.live) setLive(false, levelBlocksLive());
+    if (profile === 'run' && !p.run) {
+      profile = 'teach';
+      pushSpeed();
+      emit(`Link ${p.label.toLowerCase()}: profil turun ke TEACH.`);
+    }
+    if (ev.level === 'putus' && armed) {
+      armed = false;
+      live = false;
+      stopTimer();
+      emit('Link tersendat terlalu lama, ARM dilucuti. Lengan sudah direm firmware (lease habis).');
+    }
+    // Periode kirim ikut jalur; timer yang sedang jalan disetel ulang.
+    if (live) startTimer();
+  } else if (ev.type === 'hold') {
+    if (ev.on) {
+      resyncCmdFromActual();
+      if (live) {
+        live = false;
+        stopTimer();
+        emit('Lease habis: perintah tidak sampai tepat waktu, lengan direm firmware. '
+          + 'Nyalakan LIVE lagi untuk melanjutkan dari posisi sekarang.');
+      }
+    }
+  } else if (ev.type === 'own' || ev.type === 'relay') {
+    const why = armed ? armPrereq() : null;
+    if (why) {
+      armed = false;
+      live = false;
+      stopTimer();
+      emit(why + ' ARM dilucuti.');
+    }
   } else if (ev.type === 'drv' && !ev.ok) {
     /* Driver kehilangan tahap outputnya = jaminan yang jadi dasar ARM sudah
        hilang, sama seperti link putus. Dilucuti, bukan sekadar diblokir:

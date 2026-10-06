@@ -1,0 +1,15 @@
+{
+  "name": "armbot-relay",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Relay WebSocket Cloudflare antara ESP32 lengan robot dan digital twin di browser.",
+  "scripts": {
+    "dev": "wrangler dev --ip 0.0.0.0 --port 8787",
+    "deploy": "wrangler deploy",
+    "test": "node --test \"test/*.test.mjs\""
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}

@@ -21,9 +21,25 @@ import { STATE } from '../config/arm.js';
 import { getTCP } from '../model/kinematics.js';
 import {
   getActual, isFbTrusted, isDriverOk, getDriverResets, getUrl, isConnected,
-  onHwStatus, getGripActual,
+  onHwStatus, getGripActual, getNet,
 } from '../net/bridge.js';
+import { displayUrl } from '../net/linkConfig.js';
 import { el, sec, note, fmt } from './ui.js';
+
+/* Baris kualitas link. Hasil ukur ping/pong ke ESP32, bukan perkiraan. */
+function netRows() {
+  const n = getNet();
+  if (!isConnected()) return [];
+  const ms = (v) => (Number.isFinite(v) ? `${Math.round(v)} ms` : '--');
+  const buruk = n.level === 'buruk' || n.level === 'putus';
+  return [
+    ['jalur', n.mode === 'cloud' ? 'CLOUD (relay)' : 'LOKAL', ''],
+    ['link', n.label, buruk ? 'warn' : ''],
+    ['RTT p50 / p95', `${ms(n.p50)} / ${ms(n.p95)}`, buruk ? 'warn' : ''],
+    ['jitter', ms(n.jitter), ''],
+    ['kendali', n.own, n.hold ? 'warn' : ''],
+  ];
+}
 
 let els = {};
 let lastAck = '';
@@ -55,7 +71,8 @@ export function refresh() {
   const grip = getGripActual();
   els.stat.innerHTML = [
     ['koneksi', isConnected() ? 'tersambung' : 'putus', isConnected() ? '' : 'warn'],
-    ['alamat', getUrl(), ''],
+    ['alamat', displayUrl(getUrl()), ''],
+    ...netRows(),
     ['driver TMC', isDriverOk() ? 'terverifikasi' : 'BELUM SIAP', isDriverOk() ? '' : 'warn'],
     ['reset driver', String(getDriverResets()), getDriverResets() ? 'warn' : ''],
     ['fault encoder', fault.some(Boolean) ? fault.map((f, i) => (f ? `J${i + 1}` : '')).filter(Boolean).join(' ') : 'tidak ada',

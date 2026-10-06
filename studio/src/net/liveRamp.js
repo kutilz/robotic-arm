@@ -48,9 +48,12 @@ export const TICK_MS = 50;
    menahan gerakan yang sebenarnya akan dieksekusi lengan. */
 export const DEADBAND = 0.2;
 
-/** derajat maksimum yang boleh ditambahkan ke tiap sendi per pesan. */
-export function stepPerTick(dps) {
-  return Math.max(0.05, dps * TICK_MS / 1000);
+/** derajat maksimum yang boleh ditambahkan ke tiap sendi per pesan.
+ *  tickMs bukan TICK_MS di jalur cloud: di sana target dikirim lebih jarang
+ *  (lihat netQuality.js), jadi jatah per pesan ikut membesar supaya laju
+ *  gerak per detiknya tetap sama dengan profil. */
+export function stepPerTick(dps, tickMs = TICK_MS) {
+  return Math.max(0.05, dps * tickMs / 1000);
 }
 
 /**

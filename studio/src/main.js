@@ -22,6 +22,7 @@ import { buildGizmo } from './features/viewCube.js';
 import { initPathPreview } from './features/pathPreview.js';
 import { buildTimeline, stopPlayback, togglePlay } from './features/timeline.js';
 import { initTcpDrag } from './features/tcpDrag.js';
+import { initActualMarker } from './features/actualMarker.js';
 import { sendEstop, sendResume, onHwStatus } from './net/bridge.js';
 import { DEMOS } from './features/demos.js';
 import { icon } from './ui/icons.js';
@@ -50,6 +51,7 @@ loadTwinCal();
 buildRig();
 initPathPreview();
 initTcpDrag();
+initActualMarker();
 loadCadModel();
 
 /* Kait inspeksi untuk perkakas uji (tools/), BUKAN API untuk kode aplikasi.

@@ -320,6 +320,16 @@ lagi, bersama sinkronisasi ulang dari encoder. Grace period-nya lebih panjang
 dari satu siklus reconnect studio supaya me-refresh halaman tidak dihitung
 sebagai operator yang pergi.
 
+**Jalur cloud (7 Okt 2026, opsional):** kalau `CLOUD_HOST` diisi di
+`wifi_secrets.h`, ESP32 juga menyambung KELUAR ke relay Cloudflare (`relay/`)
+dari task terpisah di core 0 (`cloud_link.h`), jadi twin bisa mengendalikan
+lengan dari mana saja. Jalur lokal tidak berubah dan selalu boleh merebut
+kendali. Dead-man berbasis jumlah klien dilengkapi **lease**: perintah gerak
+berlaku sekian ms sejak diterima, dan tanpa perpanjangan lengan direm lalu
+targetnya dibekukan (`hold`). J5/J6 kini dibatasi laju `speed` yang sama
+dengan stepper. Rancangan dan keterbatasannya:
+[`docs/kontrol-jarak-jauh.md`](../docs/kontrol-jarak-jauh.md).
+
 Python bridge (`src/arm/bridge.py`) tidak dibutuhkan hardware ini, tapi tetap
 berguna untuk mode `--simulate` (uji digital twin + tab CAL tanpa hardware,
 protokol cal/diag/load ikut disimulasikan).
@@ -328,7 +338,9 @@ protokol cal/diag/load ikut disimulasikan).
 
 | Arah        | Format                                                                                                                              |
 | ----------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| Web → ESP32 | `{"cmd":"goto","angles":[a1..a6]}`: target derajat; divalidasi (angka finite) lalu di-clamp ke joint limit. **Ditolak** (ack `ok:false`) saat e-stop aktif atau driver belum siap |
+| Web → ESP32 | `{"cmd":"goto","angles":[a1..a6][,"lease":ms]}`: target derajat; divalidasi (angka finite) lalu di-clamp ke joint limit. **Ditolak** (ack `ok:false`) saat e-stop aktif, driver belum siap, atau (dari cloud) jalur lokal sedang memegang kendali |
+| Web → ESP32 | `{"cmd":"ping","seq":n,"t":x[,"lease":ms]}`: dijawab `pong` dari `loop()` (RTT yang terukur termasuk antrean dan beban loop); `lease` memperpanjang kendali pemegang |
+| Relay → ESP32 | `{"cmd":"lease_drop"}` (operator cloud menutup tab, lengan direm seketika) / `{"cmd":"link_cfg","fb_hz":0..25}` (laju feedback ke cloud, 0 = tanpa penonton) |
 | Web → ESP32 | `{"cmd":"estop"}` / `{"cmd":"resume"}`: resume menyamakan target dengan posisi nyata (encoder) **lalu** melepas e-stop, jadi tidak ada gerak susulan |
 | Web → ESP32 | `{"cmd":"nada","joint":1..4,"hz":40..4000,"ms":<=1500}`: bunyikan nada tanpa berpindah posisi (arah dibalik tiap 8 step)          |
 | Web → ESP32 | `{"cmd":"sweep","joint":1..4}`: sapuan 200 sampai 2000 Hz, bunyi "robot" khas A4988, sekitar 1,4 detik                            |
@@ -344,11 +356,12 @@ protokol cal/diag/load ikut disimulasikan).
 | Web → ESP32 | `{"cmd":"servo_auto"}` / `{"cmd":"servo_auto","servo":s}`: lepas mode manual                                                       |
 | Web → ESP32 | `{"cmd":"servo_read","n":1..64}`: oversample tiap kanal ADS1115 → `mv`, `sd`, `us`, `sat`                                          |
 | Web → ESP32 | `{"cmd":"servo_capture","servo":s,"from_us":a,"to_us":b,...}`: burst 860 SPS satu kanal untuk step response (kalibrasi kecepatan)  |
-| ESP32 → Web | `{"type":"feedback","angles":[a1..a6],"estop":b,"fault":[f1..f4],"grip":g,"drvok":b,"drvrst":n}` (~50 Hz; `fault`=1 bila encoder joint itu mati → open-loop; `drvok`=false bila tahap output driver dimatikan; `drvrst` = cacah pemulihan driver sejak boot) |
+| ESP32 → Web | `{"type":"feedback","angles":[a1..a6],"estop":b,"fault":[f1..f4],"grip":g,"drvok":b,"drvrst":n,"t":ms,"own":"local\|cloud\|none","hold":b}` (~50 Hz lokal, `fb_hz` ke cloud; `fault`=1 bila encoder joint itu mati → open-loop; `drvok`=false bila tahap output driver dimatikan; `drvrst` = cacah pemulihan driver sejak boot; `own` = jalur pemegang kendali; `hold` = direm karena lease habis) |
+| ESP32 → Web | `{"type":"pong","seq":n,"t":x}`: balasan `ping`, `t` digemakan apa adanya |
 | ESP32 → Web | `{"type":"servo","ch":[{nama,ok,mv,sd,us,sat}...]}`: balasan `servo_read`                                                          |
 | ESP32 → Web | `{"type":"cap","i":n,"t":[..],"raw":[..]}` lalu `{"type":"cap_end",...}`: potongan hasil `servo_capture`                           |
 | ESP32 → Web | `{"type":"cal", ...}`: balasan `cal_get`                                                                                           |
-| ESP32 → Web | `{"type":"diag", ...}`: balasan `diag`: per encoder `ok/md/ml/mh/agc/mag/raw/deg/fault`, `sg[4]` StallGuard, `load`, `wifi`, `mux` |
+| ESP32 → Web | `{"type":"diag", ...}`: balasan `diag`: per encoder `ok/md/ml/mh/agc/mag/raw/deg/fault`, `sg[4]` StallGuard, `load`, `wifi`, `cloud` (`on/up/conn/rxdrop/txdrop/own/hold`), `heap`, `heap_min`, `mux` |
 | ESP32 → Web | `{"type":"ack","cmd":"...","ok":b,"msg":"..."}`: balasan tiap command non-goto                                                     |
 
 Field `cal_set` (semua opsional; ditolak seluruhnya bila ada satu yang invalid):

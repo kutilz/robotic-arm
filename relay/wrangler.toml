@@ -1,0 +1,24 @@
+# Relay lengan: Worker + Durable Object. Lihat README.md di folder ini.
+name = "armbot-relay"
+main = "src/index.js"
+compatibility_date = "2025-09-01"
+
+[[durable_objects.bindings]]
+name = "ARM_ROOM"
+class_name = "ArmRoom"
+
+# Paket gratis Workers hanya mengizinkan Durable Object ber-backend SQLite.
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["ArmRoom"]
+
+[vars]
+# Kosong = semua origin boleh (token tetap wajib). Isi daftar dipisah koma
+# untuk membatasi, mis. "https://robotic-arm-psi.vercel.app,http://localhost:5173".
+ALLOWED_ORIGINS = ""
+
+# Rahasia TIDAK ditulis di sini. Pasang sekali:
+#   npx wrangler secret put DEVICE_KEY   (sama dengan CLOUD_DEVICE_KEY di wifi_secrets.h)
+#   npx wrangler secret put OP_TOKEN     (token operator di studio)
+#   npx wrangler secret put VIEW_TOKEN   (opsional: token lihat saja)
+# Untuk `npm run dev`, isi .dev.vars (gitignored), contohnya di .dev.vars.example.

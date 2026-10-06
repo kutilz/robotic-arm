@@ -21,3 +21,12 @@ jobs:
         run: pytest -v
       - name: Sanity-check sizing report
         run: python -m arm.torque
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Relay rules (Node, tanpa Cloudflare)
+        run: node --test "relay/test/*.test.mjs"
+      - name: Live stream + link quality rules (studio, tanpa peramban)
+        run: |
+          node studio/tools/verify_live.mjs
+          node studio/tools/verify_net.mjs

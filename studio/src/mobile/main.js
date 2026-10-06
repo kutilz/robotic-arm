@@ -57,7 +57,7 @@ import {
 } from '../net/bridge.js';
 import { setArmed, isArmed, onLiveChange } from '../net/liveLink.js';
 import { el, initToast, initModal, toast, fmt } from './ui.js';
-import { buildChain, drawChain, watchChain, openLinkSheet, savedUrl } from './link.js';
+import { buildChain, drawChain, watchChain, openLinkSheet, savedUrl, shownUrl } from './link.js';
 import { buildPose, refresh as refreshPose } from './pose.js';
 import { buildJog, refresh as refreshJog } from './jog.js';
 import { buildRoutine, refresh as refreshRoutine, routineEstop, isRunning } from './routine.js';
@@ -108,7 +108,7 @@ document.getElementById('mLink').onclick = () => openLinkSheet(syncSub);
 
 const subEl = document.getElementById('mSub');
 function syncSub() {
-  subEl.textContent = isConnected() ? savedUrl() : 'belum tersambung - ketuk ikon koneksi';
+  subEl.textContent = isConnected() ? shownUrl() : 'belum tersambung - ketuk ikon koneksi';
 }
 
 /* ---------------- tab ---------------- */
@@ -294,7 +294,10 @@ startLoop();
    selama itu. Yang didapat adalah umpan balik sudut langsung terlihat, yaitu
    satu satunya cara operator tahu HP-nya benar benar bicara dengan lengan
    sebelum ada yang ditekan. */
-connect(savedUrl());
+{
+  const u = savedUrl();
+  if (u) connect(u);
+}
 
 onHwStatus((ev) => {
   if (ev.type === 'link' && ev.up && ev.reopened && isRunning()) {

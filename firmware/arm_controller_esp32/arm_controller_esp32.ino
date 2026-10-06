@@ -124,6 +124,24 @@
  *              {"type":"cal", ...seluruh kalibrasi...}      (balasan cal_get)
  *              {"type":"diag", ...}                          (balasan diag)
  *              {"type":"ack","cmd":"...","ok":b,"msg":"..."} (balasan command)
+ *              {"type":"pong","seq":n,"t":x}                (balasan ping)
+ *   feedback juga membawa "t" (millis ESP32), "own" ("local"|"cloud"|"none",
+ *   jalur pemegang kendali gerak), "hold" (gerak dibekukan karena lease habis).
+ *
+ *   JALUR, LEASE, DAN PING (lihat blok JALUR di bawah, 7 Okt 2026):
+ *              {"cmd":"ping","seq":n,"t":x[,"lease":ms]} ukur RTT + perpanjang
+ *                                                   lease pemegang kendali
+ *              "lease":ms boleh ikut di goto/gripper/ping: perintah gerak
+ *                                                   berlaku ms sejak diterima;
+ *                                                   tanpa perpanjangan lengan
+ *                                                   direm dan target dibekukan
+ *              {"cmd":"lease_drop"}                 (relay) operator cloud pergi
+ *              {"cmd":"link_cfg","fb_hz":n}         (relay) laju feedback cloud,
+ *                                                   0 = tidak ada penonton
+ *   Dari jalur cloud hanya goto, gripper, servo_us (gripper saja, dijepit ke
+ *   rentang kalibrasinya), estop, resume, ping, cal_get, diag, dan cal_set
+ *   {speed,accel} (dijepit ke profil RUN) yang diterima. Kalibrasi tetap
+ *   kerja lokal.
  *   Field cal_set yang dikenali (semua opsional, divalidasi sebelum dipakai):
  *     enc_offset[4] enc_sign[4] ratio[4] joint_min[6] joint_max[6]
  *     speed accel kp deadband
@@ -197,6 +215,7 @@
 #include <ArduinoJson.h>
 #include <FastAccelStepper.h>
 #include <ESP32Servo.h>
+#include "jalur.h"
 
 // ======================= KONFIGURASI (SESUAIKAN) ==========================
 
@@ -669,7 +688,60 @@ bool     wsFreeze     = false;   // gerak dibekukan karena tidak ada klien
 bool     wsEverConn   = false;   // pernah ada klien (dead-man baru aktif sesudah ini)
 uint32_t wsEmptySince = 0;       // sejak kapan tidak ada klien (0 = ada)
 
+/* ---- JALUR: siapa yang boleh menggerakkan lengan, dan sampai kapan ---------
+   Sejak 7 Okt 2026 perintah bisa datang dari dua jalur: LOKAL (server :81,
+   studio atau halaman bawaan di WiFi yang sama) dan CLOUD (ESP32 tersambung
+   keluar ke relay, lihat cloud_link.h). Tiga aturan:
+
+   1 SATU PEMEGANG KENDALI. Perintah gerak (goto, gripper) hanya diterima dari
+     jalur yang sedang memegang kendali. E-stop diterima dari mana pun. Jalur
+     LOKAL selalu boleh merebut kendali dari CLOUD, karena orang yang berdiri
+     di samping lengan harus menang atas orang yang melihatnya lewat layar.
+
+   2 LEASE, BUKAN JUMLAH KLIEN. Dead-man lama menghitung klien yang tersambung.
+     Itu buta di jalur cloud: link ke relay bisa tetap hidup walaupun browser
+     operatornya sudah hilang (sinyal HP putus, tab dibekukan). Jadi perintah
+     gerak membawa "lease": berlaku sekian ms sejak DITERIMA, dan studio
+     memperpanjangnya lewat ping selama ARM menyala. Lease habis = stepper
+     direm dengan ramp, target dibekukan di posisi sekarang (`leaseHold`).
+     Lengan berhenti karena perintahnya berhenti datang, apa pun penyebabnya.
+     Pengirim tanpa lease (halaman bawaan ESP32, studio lama) tetap memakai
+     perilaku lama; jalur cloud tanpa lease diberi CLOUD_LEASE_DEFAULT_MS.
+
+   3 SERVO IKUT BATAS LAJU (servoCmdDeg). Dulu pulsa J5/J6 ditulis langsung ke
+     target tiap putaran loop, dan studio yang merayapkan target supaya
+     pergelangan tidak menyentak. Di internet itu tidak bisa diandalkan: 4G
+     yang tersendat 500 ms lalu menumpahkan 10 pesan sekaligus membuat servo
+     melompat ke yang terakhir. Sekarang J5/J6 dibatasi cal.maxSpeedDps yang
+     sama dengan stepper, jadi paket yang menumpuk tidak berbahaya. */
+// enum Jalur ada di jalur.h (alasannya di sana).
+#define CLOUD_NUM 0xFE                 // nomor klien semu untuk jalur cloud
+#define LEASE_MIN_MS 200
+#define LEASE_MAX_MS 8000
+#define CLOUD_LEASE_DEFAULT_MS 1500
+#define CTRL_IDLE_MS 5000              // pemegang tanpa lease dianggap pergi sesudah ini
+#define CLOUD_MAX_DPS   25.0f          // batas speed dari cloud (= profil RUN studio)
+#define CLOUD_MAX_DPSS  90.0f
+Jalur    ctrlJalur  = JALUR_NONE;
+uint32_t ctrlUntil  = 0;               // kepemilikan berlaku sampai (millis)
+bool     leaseOn    = false;           // pemegang memakai lease
+uint32_t leaseUntil = 0;
+bool     leaseHold  = false;           // gerak dibekukan karena lease habis
+bool     holdSynced[NUM_STEPPER] = {false};  // target sudah disamakan sesudah rem
+uint32_t cloudReplyTo = 0;             // "_c" pesan cloud yang sedang diproses
+uint32_t cloudFbMs  = 0;               // periode feedback ke relay, 0 = tidak ada penonton
+uint32_t lastCloudFb = 0;
+bool     cloudWasUp = false;
+
+static inline Jalur jalurOf(uint8_t num) { return num == CLOUD_NUM ? JALUR_CLOUD : JALUR_LOKAL; }
+static const char* jalurNama(Jalur j) {
+  return j == JALUR_LOKAL ? "local" : j == JALUR_CLOUD ? "cloud" : "none";
+}
+
 float targetDeg[NUM_JOINTS] = {0};   // target semua sendi (J1..J6)
+// Sudut yang SEDANG dituju pulsa servo, sesudah batas laju (lihat aturan 3).
+float servoCmdDeg[NUM_SERVO] = {0};
+uint32_t servoSlewT = 0;
 float actualDeg[NUM_JOINTS] = {0};   // aktual dari feedback
 bool  estop = false;
 unsigned long lastFeedback = 0;
@@ -702,6 +774,9 @@ bool muxPresent = false;
 WiFiMulti wifiMulti;
 bool runningAsAP = false;
 unsigned long lastWifiRetry = 0;
+
+// Jalur cloud (task core 0 + antrean). Butuh runningAsAP di atas.
+#include "cloud_link.h"
 
 #if USE_HX711
 // Load cell: sampel HX711 terakhir (~10 Hz). loadOk turun bila >500 ms tanpa
@@ -1472,13 +1547,22 @@ void syncSteppersFromEncoders() {
 
 // ======================= WEBSOCKET ========================================
 
+/* Satu pintu balasan ke SATU klien, dari jalur mana pun. Semua handler cukup
+   tahu `num`; apakah itu klien server :81 atau browser di balik relay
+   (CLOUD_NUM) diurus di sini, jadi tidak ada handler yang bisa lupa. */
+void wsSendTo(uint8_t num, const char* buf, size_t n) {
+  if (num == CLOUD_NUM) cloudReply(cloudReplyTo, buf, n);
+  else webSocket.sendTXT(num, buf, n);
+}
+void wsSendTo(uint8_t num, String& s) { wsSendTo(num, s.c_str(), s.length()); }
+
 // Balasan ke SATU klien: {"type":"ack","cmd":..,"ok":..,"msg":..}
 void sendAck(uint8_t num, const char* cmd, bool ok, const char* msg) {
   char buf[160];
   int n = snprintf(buf, sizeof(buf),
                    "{\"type\":\"ack\",\"cmd\":\"%s\",\"ok\":%s,\"msg\":\"%s\"}",
                    cmd, ok ? "true" : "false", msg);
-  if (n > 0) webSocket.sendTXT(num, buf, n);
+  if (n > 0 && n < (int)sizeof(buf)) wsSendTo(num, buf, n);
 }
 
 // Kirim seluruh kalibrasi ke satu klien sebagai {"type":"cal",...}.
@@ -1529,7 +1613,7 @@ void sendCal(uint8_t num) {
   }
   String out;
   serializeJson(doc, out);
-  webSocket.sendTXT(num, out);
+  wsSendTo(num, out);
 }
 
 // Snapshot diagnostik ke satu klien: {"type":"diag",...}, magnet AS5600 per
@@ -1548,7 +1632,8 @@ void sendDiag(uint8_t num) {
   // hanya dipanggil dari satu task, yaitu loop().
   // 4352 (naik dari 3584): + blok "ads" (3 kanal x 7 field). Tetap static,
   // jadi tambahan ini masuk .bss dan bukan ke stack loopTask yang cuma 8 KB.
-  static StaticJsonDocument<4352> doc;
+  // 4864 (7 Okt 2026): + blok "cloud" (7 field) + heap/heap_min.
+  static StaticJsonDocument<4864> doc;
   doc.clear();
   doc["type"] = "diag";
   JsonArray enc = doc.createNestedArray("enc");
@@ -1637,10 +1722,22 @@ void sendDiag(uint8_t num) {
   wf["mode"] = runningAsAP ? "ap" : "sta";
   wf["ip"]   = runningAsAP ? WiFi.softAPIP().toString() : WiFi.localIP().toString();
   wf["rssi"] = runningAsAP ? 0 : WiFi.RSSI();
+  // Jalur cloud + sisa heap: TLS makan puluhan KB, dan heap yang menipis
+  // adalah gejala pertama sebelum handshake mulai gagal tanpa pesan jelas.
+  JsonObject cl = doc.createNestedObject("cloud");
+  cl["on"]   = (bool)CLOUD_ENABLED;
+  cl["up"]   = (bool)cloudUp;
+  cl["conn"] = (uint32_t)cloudConnCount;
+  cl["rxdrop"] = (uint32_t)cloudRxDrop;
+  cl["txdrop"] = (uint32_t)cloudTxDrop;
+  cl["own"]  = jalurNama(ctrlJalur);
+  cl["hold"] = leaseHold;
+  doc["heap"] = ESP.getFreeHeap();
+  doc["heap_min"] = ESP.getMinFreeHeap();
   doc["mux"] = muxPresent;
   String out;
   serializeJson(doc, out);
-  webSocket.sendTXT(num, out);
+  wsSendTo(num, out);
 }
 
 // {"cmd":"i2c_scan"} -> {"type":"i2c","mux":b,"bus":[..],"ch":[[..] x8]}
@@ -1688,7 +1785,7 @@ void sendI2CScan(uint8_t num) {
   }
   String out;
   serializeJson(doc, out);
-  webSocket.sendTXT(num, out);
+  wsSendTo(num, out);
 }
 
 // Helper cal_set: salin array angka JSON ke float[] bila field ada & valid.
@@ -1917,6 +2014,7 @@ bool handleCalZero(int joint /*0-based, -1 = semua stepper*/, const char** msg) 
     cal.jointMin[j]    -= off;
     cal.jointMax[j]    -= off;
     targetDeg[j] = 0;                    // pulsa hasil pemetaan tetap sama
+    servoCmdDeg[s] -= off;               // idem untuk sudut yang dibatasi lajunya
     actualDeg[j] -= off;                 // supaya feedback tidak melompat sesaat
     snprintf(ringkas, sizeof(ringkas),
              "J%d: sumbu sudut digeser %.1f deg, rentang jadi %.0f..%.0f",
@@ -2085,7 +2183,7 @@ void handleServoCapture(uint8_t num, JsonDocument& doc) {
     for (int k = i; k < akhir && p < (int)sizeof(buf) - 16; k++)
       p += snprintf(buf + p, sizeof(buf) - p, "%s%d", k > i ? "," : "", capRaw[k]);
     p += snprintf(buf + p, sizeof(buf) - p, "]}");
-    if (p > 0 && p < (int)sizeof(buf)) webSocket.sendTXT(num, buf, p);
+    if (p > 0 && p < (int)sizeof(buf)) wsSendTo(num, buf, p);
     webSocket.loop();
   }
 
@@ -2095,7 +2193,7 @@ void handleServoCapture(uint8_t num, JsonDocument& doc) {
       "\"from_us\":%d,\"to_us\":%d,\"mv_per_lsb\":%.4f,\"penuh\":%s}",
       s, n, (unsigned)(tCmd / 100), fromUs, toUs, ADS_MV_PER_LSB,
       n >= CAP_MAX ? "true" : "false");
-  if (p > 0 && p < (int)sizeof(akhirBuf)) webSocket.sendTXT(num, akhirBuf, p);
+  if (p > 0 && p < (int)sizeof(akhirBuf)) wsSendTo(num, akhirBuf, p);
 }
 
 // {"cmd":"servo_read","n":k} : k kali oversample tiap kanal, blocking.
@@ -2127,7 +2225,7 @@ void handleServoRead(uint8_t num, JsonDocument& doc) {
         adsSatPernah[s] ? "true" : "false");
   }
   p += snprintf(buf + p, sizeof(buf) - p, "]}");
-  if (p > 0 && p < (int)sizeof(buf)) webSocket.sendTXT(num, buf, p);
+  if (p > 0 && p < (int)sizeof(buf)) wsSendTo(num, buf, p);
   // Round-robin dimulai ulang: pembacaan blocking di atas meninggalkan ADS1115
   // pada kanal terakhir, bukan pada kanal yang sedang ditunggu state machine.
   adsCur = 0;
@@ -2136,11 +2234,144 @@ void handleServoRead(uint8_t num, JsonDocument& doc) {
 }
 #endif  // SERVO_FEEDBACK
 
+// ---- JALUR: kepemilikan + lease (aturan lengkap di deklarasi ctrlJalur) ----
+
+/* Pemegang kendali yang MASIH berlaku. Kepemilikan yang sudah lewat
+   ctrlUntil dilaporkan "none", karena jalur lain memang sudah boleh masuk. */
+Jalur pemegangAktif() {
+  if (ctrlJalur == JALUR_NONE) return JALUR_NONE;
+  return (int32_t)(ctrlUntil - millis()) > 0 ? ctrlJalur : JALUR_NONE;
+}
+
+/* Rem + bekukan. Stepper direm dengan ramp (stopMove, bukan forceStop: ini
+   bukan e-stop, cuma "perintahnya berhenti datang"), target servo dibekukan
+   di sudut yang sedang dituju pulsanya, dan target stepper disamakan dengan
+   step counter di loop() begitu motornya benar benar berhenti. Dilepas hanya
+   oleh perintah gerak berikutnya, jadi lengan tidak pernah melanjutkan target
+   lama diam diam. */
+void bekukanLease(const char* why) {
+  leaseOn = false;
+  ctrlUntil = millis();
+  if (leaseHold) return;
+  leaseHold = true;
+  for (int i = 0; i < NUM_STEPPER; i++) {
+    holdSynced[i] = false;
+    if (steppers[i]) steppers[i]->stopMove();
+  }
+  for (int s = 0; s < NUM_SERVO; s++) {
+    int j = SERVO_JOINT[s];
+    if (j >= 0) targetDeg[j] = servoCmdDeg[s];
+  }
+  Serial.printf("[LEASE] %s: gerak direm, target dibekukan\n", why);
+}
+
+void aturLease(uint8_t num, JsonDocument& doc, uint32_t now) {
+  long L = doc["lease"] | 0L;
+  if (L <= 0 && num == CLOUD_NUM) L = CLOUD_LEASE_DEFAULT_MS;
+  if (L > 0) {
+    if (L < LEASE_MIN_MS) L = LEASE_MIN_MS;
+    if (L > LEASE_MAX_MS) L = LEASE_MAX_MS;
+    leaseOn = true;
+    leaseUntil = now + (uint32_t)L;
+    ctrlUntil = leaseUntil;
+  } else {
+    leaseOn = false;                     // pengirim lama: perilaku lama
+    ctrlUntil = now + CTRL_IDLE_MS;
+  }
+}
+
+/* Perintah gerak boleh lewat? Sekaligus mengklaim kendali dan memasang lease.
+   false = sudah dijawab ack penolakan, pemanggil tinggal return. */
+bool klaimGerak(uint8_t num, JsonDocument& doc, const char* cmd) {
+  Jalur j = jalurOf(num);
+  Jalur p = pemegangAktif();
+  if (p != JALUR_NONE && p != j) {
+    if (j == JALUR_CLOUD) {
+      sendAck(num, cmd, false, "lengan sedang dikendalikan dari jaringan lokal");
+      return false;
+    }
+    Serial.println("[JALUR] jaringan lokal merebut kendali dari cloud");
+  }
+  if (ctrlJalur != j) Serial.printf("[JALUR] kendali -> %s\n", jalurNama(j));
+  ctrlJalur = j;
+  aturLease(num, doc, millis());
+  if (leaseHold) {
+    leaseHold = false;
+    Serial.println("[LEASE] perintah gerak baru, pembekuan dilepas");
+  }
+  return true;
+}
+
+/* Yang boleh datang dari cloud. Kalibrasi, servo mentah, nada, capture tetap
+   kerja di samping lengan: di sana orangnya melihat apa yang terjadi, dan
+   satu cal_save yang salah dari jauh merusak kalibrasi NVS tanpa ada yang
+   melihat lengannya. cal_set cuma boleh membawa speed/accel (dipakai studio
+   saat ARM dan ganti profil), dan nilainya DIJEPIT ke profil RUN. */
+bool cloudBoleh(const char* cmd, JsonDocument& doc) {
+  static const char* const BOLEH[] = {
+    "goto", "gripper", "estop", "resume", "ping", "cal_get", "diag",
+    "lease_drop", "link_cfg",
+  };
+  for (const char* c : BOLEH) if (strcmp(cmd, c) == 0) return true;
+  /* servo_us HANYA untuk gripper: rutin pick & place di studio membuka dan
+     menutup rahang dengan pulsa terukur (bukan pemetaan sudut). Pulsanya
+     dijepit ke rentang kalibrasi gripper di handler-nya. */
+  if (strcmp(cmd, "servo_us") == 0) return (doc["servo"] | -1) == SERVO_GRIP;
+  if (strcmp(cmd, "cal_set") != 0) return false;
+  for (JsonPair kv : doc.as<JsonObject>()) {
+    const char* k = kv.key().c_str();
+    if (strcmp(k, "cmd") && strcmp(k, "_c") && strcmp(k, "speed") && strcmp(k, "accel"))
+      return false;
+  }
+  if (doc["speed"].is<float>() && doc["speed"].as<float>() > CLOUD_MAX_DPS) doc["speed"] = CLOUD_MAX_DPS;
+  if (doc["accel"].is<float>() && doc["accel"].as<float>() > CLOUD_MAX_DPSS) doc["accel"] = CLOUD_MAX_DPSS;
+  return true;
+}
+
 void handleText(uint8_t num, uint8_t* payload, size_t length) {
   StaticJsonDocument<1536> doc;
   if (deserializeJson(doc, payload, length)) return;   // JSON rusak -> abaikan
 
   const char* cmd = doc["cmd"] | "";
+
+  if (num == CLOUD_NUM) {
+    cloudReplyTo = doc["_c"] | 0UL;    // balasan apa pun kembali ke browser ini
+    if (!cloudBoleh(cmd, doc)) {
+      sendAck(num, cmd[0] ? cmd : "?", false, "perintah ini hanya dari jaringan lokal");
+      return;
+    }
+  }
+
+  if (strcmp(cmd, "ping") == 0) {
+    /* Pong dijawab dari loop(), bukan dari task jaringan, jadi RTT yang
+       terukur studio sudah termasuk antrean dan beban loop kendali: itu
+       latensi yang benar benar dialami perintah gerak. */
+    if (!doc["lease"].isNull() && jalurOf(num) == pemegangAktif())
+      aturLease(num, doc, millis());
+    char buf[96];
+    int n = snprintf(buf, sizeof(buf), "{\"type\":\"pong\",\"seq\":%lu,\"t\":%.1f}",
+                     (unsigned long)(doc["seq"] | 0UL), (double)(doc["t"] | 0.0));
+    if (n > 0 && n < (int)sizeof(buf)) wsSendTo(num, buf, n);
+    return;
+
+  } else if (strcmp(cmd, "lease_drop") == 0) {
+    // Relay: browser pemegang kendali menutup koneksinya. Lebih cepat daripada
+    // menunggu lease habis, dan tidak bergantung pada jam siapa pun.
+    if (num == CLOUD_NUM && ctrlJalur == JALUR_CLOUD) {
+      bekukanLease("operator cloud pergi");
+      ctrlJalur = JALUR_NONE;
+    }
+    return;
+
+  } else if (strcmp(cmd, "link_cfg") == 0) {
+    // Relay mengatur laju feedback cloud sesuai ada/tidaknya penonton.
+    if (num == CLOUD_NUM) {
+      int hz = doc["fb_hz"] | 0;
+      hz = hz < 0 ? 0 : (hz > 25 ? 25 : hz);
+      cloudFbMs = hz ? 1000 / hz : 0;
+    }
+    return;
+  }
 
   if (strcmp(cmd, "goto") == 0) {
 #if !ESTOP_AUTO_RESUME
@@ -2158,6 +2389,7 @@ void handleText(uint8_t num, uint8_t* payload, size_t length) {
 
     JsonArray a = doc["angles"].as<JsonArray>();
     if (a.isNull()) return;
+    if (!klaimGerak(num, doc, cmd)) return;
     int n = 0;
     for (JsonVariant v : a) {
       if (n >= NUM_JOINTS) break;
@@ -2253,6 +2485,7 @@ void handleText(uint8_t num, uint8_t* payload, size_t length) {
   } else if (strcmp(cmd, "gripper") == 0) {
     float d = doc["deg"] | NAN;
     if (!isfinite(d)) { sendAck(num, cmd, false, "deg bukan angka"); return; }
+    if (!klaimGerak(num, doc, cmd)) return;
     gripTargetDeg = clampf(d, cal.servoAngMin[SERVO_GRIP], cal.servoAngMax[SERVO_GRIP]);
     gripMulaiDorong();                 // torsi dilepas otomatis, lihat AUTO-LEMAS
     sendAck(num, cmd, true, "target gripper diterima");
@@ -2308,6 +2541,7 @@ void handleText(uint8_t num, uint8_t* payload, size_t length) {
       // menarik servo balik ke target lama begitu mode manual dilepas.
       float t = 0.5f * (cal.servoAngMin[s] + cal.servoAngMax[s]);
       if (j >= 0) targetDeg[j] = t; else gripTargetDeg = t;
+      servoCmdDeg[s] = t;                // pulsanya ditulis langsung, batas laju ikut
       servoWriteUs(s, cal.servoUsCenter[s]);
     }
     // Gripper tetap tunduk pada auto-lemas: dia boleh berjalan ke tengah, tapi
@@ -2321,6 +2555,13 @@ void handleText(uint8_t num, uint8_t* payload, size_t length) {
     int us = doc["us"] | -1;
     if (s < 0 || s >= NUM_SERVO)  { sendAck(num, cmd, false, "servo di luar 0..2"); return; }
     if (us < 400 || us > 2600)    { sendAck(num, cmd, false, "us di luar 400..2600"); return; }
+    if (num == CLOUD_NUM) {
+      // Dari jauh tidak ada yang melihat rahang menekan stop mekanis.
+      int lo = min(cal.servoUsMin[s], cal.servoUsMax[s]);
+      int hi = max(cal.servoUsMin[s], cal.servoUsMax[s]);
+      us = us < lo ? lo : (us > hi ? hi : us);
+      if (!klaimGerak(num, doc, cmd)) return;
+    }
     servoManual[s] = true;
     servoWriteUs(s, us);
     sendAck(num, cmd, true, "pulsa mentah diterapkan (mode manual)");
@@ -2655,6 +2896,14 @@ void setup() {
     // benar, sedangkan titik tengah adalah satu-satunya pose yang dijamin ada
     // di dalam travel servo, jadi lengan tidak pernah boot ke ujung stall.
     servoWriteUs(i, cal.servoUsCenter[i]);
+    // Batas laju berangkat dari titik tengah yang barusan ditulis, bukan dari
+    // 0: kalau tidak, putaran loop pertama menganggap servo sudah di 0 dan
+    // langsung menulis pulsanya, persis lompatan yang mau dicegah.
+    float spanUs = (float)(cal.servoUsMax[i] - cal.servoUsMin[i]);
+    servoCmdDeg[i] = spanUs > 0
+        ? cal.servoAngMin[i] + (cal.servoUsCenter[i] - cal.servoUsMin[i]) / spanUs
+                               * (cal.servoAngMax[i] - cal.servoAngMin[i])
+        : 0.0f;
   }
   gripTargetDeg = 0.5f * (cal.servoAngMin[SERVO_GRIP] + cal.servoAngMax[SERVO_GRIP]);
   // Pose boot pun tunduk auto-lemas. Tanpa baris ini gripDriving tetap false,
@@ -2717,6 +2966,7 @@ void setup() {
   webSocket.enableHeartbeat(3000, 1500, 2);
   webSocket.onEvent(onWsEvent);
   Serial.println("[WS] server WebSocket aktif (heartbeat 3s).");
+  cloudSetup();   // tanpa CLOUD_HOST di wifi_secrets.h: tidak melakukan apa apa
 
   setupHttp();
   Serial.printf("[WEB] halaman kontrol -> http://%s/  (buka dari HP/laptop sejaringan)\n",
@@ -2724,19 +2974,52 @@ void setup() {
 
   // Guardrail hang: loop() macet (I2C/WiFi/lib) -> task WDT reboot ESP32.
   // Aman: EN_PIN strapping GPIO5 = driver off selama boot berikutnya.
+  servoSlewT = millis();
   enableLoopWDT();
+}
+
+/* Jalur cloud dilayani dari loop(), di core yang sama dengan loop kendali.
+   E-stop didahulukan dari antrean (lihat cloud_link.h), lalu paling banyak
+   beberapa pesan per putaran supaya banjir dari relay tidak bisa menahan
+   servo dan encoder. */
+void layaniCloud() {
+  if (cloudEstopPending) {
+    cloudEstopPending = false;
+    if (!estop) { applyEstop(true); Serial.println("[CLOUD] e-stop dari relay"); }
+  }
+  char* p; uint16_t n;
+  for (int k = 0; k < 6 && cloudPop(&p, &n); k++) {
+    handleText(CLOUD_NUM, (uint8_t*)p, n);
+    free(p);
+  }
+  bool up = cloudUp;
+  if (cloudWasUp && !up) {
+    cloudFbMs = 0;
+    if (ctrlJalur == JALUR_CLOUD) {
+      bekukanLease("relay putus");
+      ctrlJalur = JALUR_NONE;
+    }
+  }
+  cloudWasUp = up;
 }
 
 void loop() {
   webSocket.loop();
   http.handleClient();
+  layaniCloud();
+
+  // Lease habis = perintah gerak berhenti datang. Lihat blok JALUR.
+  if (leaseOn && (int32_t)(millis() - leaseUntil) > 0) bekukanLease("lease habis");
 
   /* Dead-man klien. Dihitung di sini, bukan di WStype_DISCONNECTED, supaya
      tidak bergantung pada apakah pustaka sudah mengurangi cacahnya saat event
      itu dipancarkan. Pembekuan sengaja lewat ramp (stopMove), bukan forceStop:
-     ini bukan e-stop, cuma "tidak ada lagi yang menonton". */
+     ini bukan e-stop, cuma "tidak ada lagi yang menonton".
+
+     Relay yang sedang punya penonton (cloudFbMs > 0) ikut dihitung sebagai
+     klien. Bahwa penonton itu masih ada di tempat dijaga lease, bukan di sini. */
   {
-    uint8_t klien = webSocket.connectedClients();
+    uint8_t klien = webSocket.connectedClients() + ((cloudUp && cloudFbMs) ? 1 : 0);
     if (klien > 0) {
       wsEverConn = true;
       wsEmptySince = 0;
@@ -2751,6 +3034,8 @@ void loop() {
         wsFreeze = true;
         for (int i = 0; i < NUM_STEPPER; i++)
           if (steppers[i]) steppers[i]->stopMove();
+        for (int s = 0; s < NUM_SERVO; s++)        // servo ikut berhenti di tempat
+          if (SERVO_JOINT[s] >= 0) targetDeg[SERVO_JOINT[s]] = servoCmdDeg[s];
         Serial.printf("[WS] tidak ada klien selama %d ms: gerak dibekukan "
                       "(dead-man).\n", WS_DEADMAN_MS);
       }
@@ -2801,7 +3086,21 @@ void loop() {
     // tmcDown: tahap output mati, jadi memerintahkan moveTo cuma membuat step
     // counter merayap menjauh dari posisi fisik yang sebenarnya tidak berubah.
     // wsFreeze: tidak ada yang menonton, gerak sedang di-ramp turun.
-    if (!estop && !tmcDown && !wsFreeze && steppers[i]) {
+    // leaseHold: lease habis. Selama direm, sendi ini tidak dikendalikan sama
+    // sekali; begitu motornya berhenti, target disamakan SEKALI dengan step
+    // counter, lalu sendi kembali ke jalur biasa. Jadi goto berikutnya tidak
+    // bisa menghidupkan target lama, sementara koreksi encoder tetap menahan
+    // posisi selama operator diam (hold bisa berlangsung lama sesudah ARM
+    // dilucuti, dan J2 tanpa koreksi bisa melorot pelan).
+    bool sedangDirem = false;
+    if (leaseHold && !holdSynced[i] && steppers[i]) {
+      if (steppers[i]->isRunning()) sedangDirem = true;
+      else {
+        targetDeg[i] = steppers[i]->getCurrentPosition() / STEPS_PER_DEG[i];
+        holdSynced[i] = true;
+      }
+    }
+    if (!estop && !tmcDown && !wsFreeze && !sedangDirem && steppers[i]) {
       long targetSteps = (long)(targetDeg[i] * STEPS_PER_DEG[i]);
       // kp = 0 berarti "koreksi encoder dimatikan", BUKAN "sendi dibekukan",
       // jadi ia harus ikut jalur open-loop yang sama dengan encoder mati.
@@ -2882,9 +3181,20 @@ void loop() {
   // 2) Servo J5/J6/gripper: kirim target (bila tidak e-stop), baca posisi aktual.
   //    Servo dalam mode manual (kalibrasi) dilewati: pulsanya sudah di-set
   //    servo_us dan tidak boleh ditimpa pemetaan sudut tiap putaran loop.
+  //    J5/J6 dibatasi cal.maxSpeedDps (blok JALUR aturan 3). Gripper TIDAK:
+  //    auto-lemas melepas torsinya 3 detik sesudah perintah, dan rahang yang
+  //    dirayapkan pelan akan dilepas sebelum sampai.
+  uint32_t nowS = millis();
+  float dt = (nowS - servoSlewT) / 1000.0f;
+  servoSlewT = nowS;
+  if (dt > 0.1f) dt = 0.1f;               // loop yang sempat tertahan tidak boleh jadi lompatan
+  float langkah = cal.maxSpeedDps * dt;
   for (int i = 0; i < NUM_SERVO; i++) {
     int j = SERVO_JOINT[i];
-    float cmd = (j >= 0) ? targetDeg[j] : gripTargetDeg;
+    float tgt = (j >= 0) ? targetDeg[j] : gripTargetDeg;
+    if (j < 0 || servoManual[i]) servoCmdDeg[i] = tgt;
+    else if (!estop) servoCmdDeg[i] += clampf(tgt - servoCmdDeg[i], -langkah, langkah);
+    float cmd = servoCmdDeg[i];
     if (!estop && !servoManual[i]) servoWriteUs(i, servoAngleToUs(i, cmd));
     float akt = readServoAngle(i, cmd);
     if (j >= 0) actualDeg[j] = akt; else gripActualDeg = akt;
@@ -2896,7 +3206,7 @@ void loop() {
   // 3) Broadcast feedback ke semua klien web ~50 Hz (+ status guardrail).
   if (millis() - lastFeedback >= 20) {
     lastFeedback = millis();
-    char buf[256];
+    char buf[320];
     // drvok/drvrst ditambahkan 13 Agu 2026: tanpa keduanya, driver yang
     // kehilangan VM lalu kembali dengan register default sama sekali tidak
     // punya wakil di layar, dan satu-satunya gejalanya adalah arus catu daya
@@ -2905,13 +3215,25 @@ void loop() {
     int n = snprintf(buf, sizeof(buf),
         "{\"type\":\"feedback\",\"angles\":[%.2f,%.2f,%.2f,%.2f,%.2f,%.2f],"
         "\"estop\":%s,\"fault\":[%d,%d,%d,%d],\"grip\":%.2f,"
-        "\"drvok\":%s,\"drvrst\":%u}",
+        "\"drvok\":%s,\"drvrst\":%u,"
+        "\"t\":%lu,\"own\":\"%s\",\"hold\":%s}",
         actualDeg[0], actualDeg[1], actualDeg[2],
         actualDeg[3], actualDeg[4], actualDeg[5],
         estop ? "true" : "false",
         encFault[0], encFault[1], encFault[2], encFault[3],
         gripActualDeg,
-        tmcDown ? "false" : "true", tmcResetSeen);
-    if (n > 0 && n < (int)sizeof(buf)) webSocket.broadcastTXT(buf, n);
+        tmcDown ? "false" : "true", tmcResetSeen,
+        (unsigned long)lastFeedback, jalurNama(pemegangAktif()),
+        leaseHold ? "true" : "false");
+    if (n > 0 && n < (int)sizeof(buf)) {
+      webSocket.broadcastTXT(buf, n);
+      /* Ke relay lebih jarang dari 50 Hz lokal: lalu lintas lewat TLS mahal
+         untuk ESP32, dan di 4G frame yang terlalu rapat cuma menumpuk di
+         antrean. Lajunya diatur relay (link_cfg), 0 = tidak ada penonton. */
+      if (cloudFbMs && cloudUp && millis() - lastCloudFb >= cloudFbMs) {
+        lastCloudFb = millis();
+        cloudSendRaw(buf, n);
+      }
+    }
   }
 }
