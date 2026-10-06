@@ -1,0 +1,18 @@
+# Pintu masuk kedua relay: Cloudflare Pages. Lihat ../src/gate.js untuk alasannya
+# (XL Axiata memblokir *.workers.dev). Durable Object TIDAK didefinisikan di
+# sini, cuma dipinjam dari Worker armbot-relay (script_name), jadi state lengan
+# satu dan sama apa pun pintu yang dipakai ESP32 dan browser.
+name = "armbot-relay"
+pages_build_output_dir = "public"
+compatibility_date = "2025-09-01"
+
+[[durable_objects.bindings]]
+name = "ARM_ROOM"
+class_name = "ArmRoom"
+script_name = "armbot-relay"
+
+[vars]
+ALLOWED_ORIGINS = ""
+
+# Rahasia sama dengan Worker, dipasang terpisah:
+#   npx wrangler pages secret put DEVICE_KEY --project-name armbot-relay

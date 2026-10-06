@@ -92,6 +92,27 @@ feedback sesuai ada tidaknya penonton. Rinciannya di
   operator melihat seberapa jauh lengan tertinggal di ruang 3D, bukan cuma di
   deretan angka.
 
+## Alamat relay dan blokir operator
+
+Relay di-deploy 7 Okt 2026 ke akun Cloudflare user. Alamat yang dipakai
+studio dan firmware: **`armbot-relay.pages.dev`**. Alamat Worker aslinya
+(`armbot-relay.kutilz.workers.dev`) diblokir DNS oleh XL Axiata, termasuk
+kueri ke 1.1.1.1, jadi tidak bisa dipakai dari HP atau ESP32 di hotspot XL.
+Rinciannya dan jalan keluar kalau `pages.dev` ikut diblokir ada di
+[`relay/README.md`](../relay/README.md).
+
+Hasil ukur 7 Okt 2026, laptop di hotspot XL memainkan lengan (simulator) DAN
+operator sekaligus, jadi dua kaki seluler lewat satu uplink:
+
+| Pengukur | RTT p50 | p95 | Tingkat |
+| --- | --- | --- | --- |
+| klien Python, 30 ping | 126 ms | 186 ms | Baik |
+| twin publik di Vercel, Edge headless | 132 ms | 284 ms | Baik |
+| twin publik, sesi lain beberapa menit sebelumnya | 519 sampai 951 ms | 1,2 sampai 1,8 s | Buruk (LIVE ditahan) |
+
+Baris terakhir menunjukkan kenapa tingkat link perlu ada: di jaringan yang
+sama, dalam beberapa menit, RTT bisa naik lima kali lipat.
+
 ## Keterbatasan yang harus diketahui
 
 - Ketergantungannya pindah, tidak hilang: bebas dari PC dan WiFi rumah, tapi

@@ -14,6 +14,37 @@ relay Cloudflare (folder ini)        ← token, satu operator, lease_drop, yang 
 ESP32 di WiFi apa pun yang punya internet (mis. hotspot HP)
 ```
 
+## Alamat yang dipakai: `armbot-relay.pages.dev`
+
+Relay ini punya dua pintu ke Durable Object yang SAMA:
+
+| Pintu | Alamat | Status |
+| --- | --- | --- |
+| Worker | `armbot-relay.kutilz.workers.dev` | jalan, tapi **diblokir XL Axiata** |
+| Pages | `armbot-relay.pages.dev` | **dipakai** (studio dan firmware) |
+
+Ketahuan 7 Okt 2026 saat uji pertama: XL membelokkan DNS **semua** subdomain
+`*.workers.dev` ke IP halaman blokir, termasuk kueri ke 1.1.1.1 (port 53
+dicegat). Relay-nya sehat (menjawab dari IP Cloudflare asli lewat DoH), tapi
+HP dan ESP32 di hotspot XL tidak akan pernah sampai. `*.pages.dev` saat itu
+lolos, jadi `pages/` memasang Pages Function yang memanggil gerbang yang sama
+(`src/gate.js`) dengan Durable Object pinjaman dari Worker (`script_name`).
+
+Kalau suatu hari operator lain juga memblokir `pages.dev`, pintu ketiga yang
+paling tahan blokir adalah domain sendiri: tambahkan domain ke Cloudflare lalu
+pasang route/custom domain ke Worker `armbot-relay`. Relay dan state-nya tidak
+berubah, cuma host di studio dan `CLOUD_HOST` di firmware.
+
+Cara cek blokir dari jaringan mana pun:
+
+```bash
+python -c "import socket;print(socket.gethostbyname('armbot-relay.pages.dev'))"
+curl -s "https://cloudflare-dns.com/dns-query?name=armbot-relay.pages.dev&type=A" -H "accept: application/dns-json"
+```
+
+IP keduanya harus sama (172.66.x / 104.x milik Cloudflare). Kalau DNS biasa
+memberi IP lain, operator itu memblokir.
+
 Jalur lokal (`ws://<ip-esp32>:81` dan halaman bawaan ESP32) **tidak diganti**:
 keduanya jalan berbarengan, dan jaringan lokal selalu boleh merebut kendali dari
 cloud. Rancangan lengkapnya ada di [`docs/kontrol-jarak-jauh.md`](../docs/kontrol-jarak-jauh.md).
@@ -32,15 +63,24 @@ npx wrangler login                    # buka browser, izinkan
 npx wrangler secret put DEVICE_KEY    # string acak panjang, sama dengan CLOUD_DEVICE_KEY di firmware
 npx wrangler secret put OP_TOKEN      # token operator, diketik di studio
 npx wrangler secret put VIEW_TOKEN    # opsional: token lihat saja (boleh e-stop, tidak boleh gerak)
-npm run deploy                        # -> https://armbot-relay.<akun>.workers.dev
+npm run deploy                        # Worker + Durable Object
+# pintu Pages (lihat bagian atas: workers.dev diblokir XL)
+cd pages
+npx wrangler pages project create armbot-relay --production-branch main
+npx wrangler pages secret put DEVICE_KEY --project-name armbot-relay   # dst, tiga rahasia yang sama
+npx wrangler pages deploy --project-name armbot-relay --branch main
 ```
+
+Sudah dilakukan 7 Okt 2026 di akun Cloudflare user. Rahasianya tersimpan di
+`relay/.secrets.local` (gitignored) dan `DEVICE_KEY` sudah diisikan ke
+`wifi_secrets.h` lokal.
 
 Buat rahasia acak misalnya dengan `python -c "import secrets;print(secrets.token_urlsafe(24))"`.
 
 Lalu di firmware (`firmware/arm_controller_esp32/wifi_secrets.h`):
 
 ```c
-#define CLOUD_HOST       "armbot-relay.<akun>.workers.dev"
+#define CLOUD_HOST       "armbot-relay.pages.dev"
 #define CLOUD_ARM_ID     "armbot"
 #define CLOUD_DEVICE_KEY "<DEVICE_KEY yang sama>"
 ```

@@ -19,40 +19,12 @@
    berarti tidak ada ping selama itu, dan lease-nya memang sudah habis.
    ========================================================================== */
 import { DurableObject } from 'cloudflare:workers';
-import { RoomCore, roleFor, sameSecret, originAllowed, ARM_ID_RE } from './room.js';
+import { RoomCore, roleFor } from './room.js';
+import { handle } from './gate.js';
 
-export default {
-  async fetch(req, env) {
-    const url = new URL(req.url);
-    if (url.pathname === '/' || url.pathname === '/health') {
-      return new Response('armbot relay ok\n', { headers: { 'content-type': 'text/plain' } });
-    }
-    const m = url.pathname.match(/^\/arm\/([^/]+)\/(device|ui)$/);
-    if (!m) return new Response('not found', { status: 404 });
-    const [, armId, kind] = m;
-    if (!ARM_ID_RE.test(armId)) return new Response('arm id tidak valid', { status: 400 });
-    if (req.headers.get('Upgrade') !== 'websocket') {
-      return new Response('butuh WebSocket', { status: 426 });
-    }
-
-    /* Autentikasi di Worker, SEBELUM Durable Object dibangunkan: permintaan
-       tanpa kunci tidak boleh memakan kuota DO sama sekali. */
-    if (kind === 'device') {
-      if (!sameSecret(url.searchParams.get('key') || '', env.DEVICE_KEY)) {
-        return new Response('kunci perangkat salah', { status: 401 });
-      }
-    } else {
-      if (!originAllowed(req.headers.get('Origin'), env.ALLOWED_ORIGINS)) {
-        return new Response('origin tidak diizinkan', { status: 403 });
-      }
-      if (!roleFor(url.searchParams.get('token') || '', env)) {
-        return new Response('token salah', { status: 401 });
-      }
-    }
-    const stub = env.ARM_ROOM.get(env.ARM_ROOM.idFromName(armId));
-    return stub.fetch(req);
-  },
-};
+/* Pintu masuk langsung (armbot-relay.<akun>.workers.dev). Pintu kedua lewat
+   Cloudflare Pages (pages/) memakai handle() yang sama persis. */
+export default { fetch: (req, env) => handle(req, env) };
 
 export class ArmRoom extends DurableObject {
   constructor(ctx, env) {

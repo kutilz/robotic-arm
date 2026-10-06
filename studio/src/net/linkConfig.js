@@ -23,7 +23,11 @@ const LS_OLD_POCKET = 'armpocket.ws.v1';   // alamat lama halaman HP, diwarisi s
 export const DEFAULTS = {
   mode: 'local',
   localUrl: 'ws://192.168.1.8:81',
-  relay: '',          // host saja, mis. armbot-relay.namamu.workers.dev
+  /* Pintu Pages, bukan workers.dev: XL Axiata (dan mungkin operator lain)
+     membelokkan DNS semua subdomain *.workers.dev ke halaman blokir. Lihat
+     relay/src/gate.js. Token tetap wajib, jadi host bawaan ini tidak membuka
+     apa pun bagi yang tidak memegangnya. */
+  relay: 'armbot-relay.pages.dev',
   armId: 'armbot',
   token: '',
 };

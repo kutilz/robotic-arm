@@ -311,7 +311,7 @@ export function buildInterlockBar() {
   boxLocal.appendChild(hintLocal);
 
   const boxCloud = document.createElement('div');
-  const relayIn = field('text', 'armbot-relay.namamu.workers.dev', cfg.relay, (v) => { cfg.relay = v; });
+  const relayIn = field('text', 'armbot-relay.pages.dev', cfg.relay, (v) => { cfg.relay = v; });
   const armIn = field('text', 'armbot', cfg.armId, (v) => { cfg.armId = v || 'armbot'; });
   armIn.style.maxWidth = '90px';
   const row = document.createElement('div'); row.className = 'ilRow'; row.append(relayIn, armIn);

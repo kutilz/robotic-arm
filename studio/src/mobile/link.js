@@ -219,7 +219,7 @@ export function openLinkSheet(onChanged) {
 
     const boxC = el('div');
     const bc = sec(boxC, 'relay');
-    bc.appendChild(input('text', cfg.relay, 'armbot-relay.namamu.workers.dev', (v) => { cfg.relay = v; }));
+    bc.appendChild(input('text', cfg.relay, 'armbot-relay.pages.dev', (v) => { cfg.relay = v; }));
     bc.appendChild(input('text', cfg.armId, 'id lengan (armbot)', (v) => { cfg.armId = v || 'armbot'; }));
     bc.appendChild(input('password', cfg.token, 'token operator', (v) => { cfg.token = v; }));
     note(boxC, 'Lewat relay Cloudflare: jalan dari jaringan mana pun, termasuk data seluler, '
